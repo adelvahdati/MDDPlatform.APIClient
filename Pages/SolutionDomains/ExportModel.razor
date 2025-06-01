@@ -1,0 +1,116 @@
+@page "/ExportModel/{DomainModelId:guid}"
+@page "/ExportModel/"
+@inject IDomainModelService domainModelService
+@inject IJSRuntime JS
+@using System.IO;
+@using System.Text.Json
+<ProblemDomainManagementMenu/>
+@if(DomainModelId == Guid.Empty)
+{
+    <Field>
+        <FileEdit Changed="@OnChanged" Written="@OnWritten" Progressed="@OnProgressed" />    
+    </Field>
+}
+@if(model!=null)
+{
+    foreach(var item in TypeOptions)
+    {
+        <Check TValue="bool" @bind-Checked="@TypeOptions[item.Key]">@item.Key</Check>
+    }
+    <Field Horizontal>
+        <Button Color="Color.Primary" Clicked="@DownloadFileFromStream">
+            Download @model.Name
+        </Button>
+    </Field>
+}
+@code
+{
+    [Parameter]
+    public Guid DomainModelId { get; set; } = Guid.Empty;
+    private DomainModelDto? model = null;
+
+    private Dictionary<string,bool> TypeOptions = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if(DomainModelId==Guid.Empty)
+            return;
+        await GetModelAsync();
+
+    }
+    private async Task GetModelAsync()
+    {
+        model = await domainModelService.GetDomainModelById(DomainModelId);
+        if(model !=null)
+        {
+            var types = model.Concepts.Select(c=>c.Type).ToList().Distinct();
+            foreach(var type in types)
+            {
+                TypeOptions.Add(type,false);
+            }
+        }
+            
+        StateHasChanged();
+    }
+    private async Task<Stream> GetFileStream()
+    {
+        List<DomainConceptDto>? domainConcepts =null;
+        List<string> fullNames = new();
+        if(model!=null)
+        {
+            foreach(var type in TypeOptions)
+            {
+                if(type.Value)
+                {
+                    fullNames.AddRange(
+                        model.Concepts.Where(c=>c.Type==type.Key).Select(c=>c.GetFullName()).ToList()
+                    );
+                }
+            }
+            domainConcepts = await domainModelService.GetDomainConceptsByFullName(model.Id,fullNames);
+        }
+        if(domainConcepts==null)
+            domainConcepts=new();
+        var randomBinaryData = JsonSerializer.SerializeToUtf8Bytes(domainConcepts);
+        var fileStream = new MemoryStream(randomBinaryData);
+
+        return fileStream;
+    }
+    private async Task DownloadFileFromStream()
+    {
+        var fileStream =await GetFileStream();
+        var fileName = "domain-model.json";
+        using var streamRef = new DotNetStreamReference(stream: fileStream);
+
+        await JS.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);            
+
+    }    
+    private async Task OnChanged( FileChangedEventArgs e )
+    {
+        var fileContents="";
+        try
+        {
+
+        }
+        catch ( Exception exc )
+        {
+            Console.WriteLine( exc.Message );
+        }
+        finally
+        {
+            this.StateHasChanged();
+        }
+    }
+
+    void OnWritten( FileWrittenEventArgs e )
+    {
+        Console.WriteLine( $"File: {e.File.Name} Position: {e.Position} Data: {Convert.ToBase64String( e.Data )}" );
+    }
+
+    void OnProgressed( FileProgressedEventArgs e )
+    {
+        Console.WriteLine( $"File: {e.File.Name} Progress: {e.Percentage}" );
+    }    
+
+}
+

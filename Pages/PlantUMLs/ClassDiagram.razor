@@ -1,0 +1,27 @@
+@page "/ClassDiagram/{DomainModelId:guid}"
+@inject IPlantUMLService _plantUMLService;
+@if(diagram!=null)
+{
+    <Div>
+        <a href="@diagram.SVGImageUrl" target="_blank">SVG Image</a>
+        <a href="@diagram.PNGImageUrl" target="_blank">PNG Image</a>
+    </Div>
+    <Field Horizontal VerticalAlignment="VerticalAlignment.Top">
+        <FieldLabel></FieldLabel>
+        <FieldBody>
+            <MemoEdit Rows="20" @bind-Text="diagram.Code">
+            </MemoEdit>
+        </FieldBody>
+    </Field>
+}
+@code 
+{
+    [Parameter]
+    public Guid DomainModelId {get;set;}
+    private DiagramDto? diagram = null;
+    protected override async Task OnInitializedAsync()
+    {
+        diagram = await _plantUMLService.GetClassDiagramAsync(DomainModelId);
+        StateHasChanged();        
+    }    
+}

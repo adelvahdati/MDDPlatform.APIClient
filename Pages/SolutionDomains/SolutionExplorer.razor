@@ -1,0 +1,110 @@
+@page "/SolutionExplorer/{DomainModelId:guid}"
+@using ElementDto = MDDPlatform.APIClient.Dtos.DomainModels.ElementDto;
+@inject IDomainModelService domainModelService
+<ProblemDomainManagementMenu/>
+
+@if(domainModelElements!=null)
+{
+    <Div>
+        @domainModelElements.Name ; @domainModelElements.Tag ; @domainModelElements.Type        
+    </Div>
+    <Table>
+        <TableHeader>
+            <TableHeaderCell>Code</TableHeaderCell>
+            <TableHeaderCell>Items</TableHeaderCell>
+        </TableHeader>
+        <TableBody>
+            <TableRow>
+                <TableRowCell Width="Width.Is75">
+                <Field Horizontal VerticalAlignment="VerticalAlignment.Top">
+                    <FieldLabel></FieldLabel>
+                    <textarea style="height: fit-content;">
+                    @if(selectedElement!=null)
+                    {
+                        <DynamicComponent Type="@ClassDeclaration.GetComponentType()" Parameters="@ClassDeclaration.GetParameters(selectedElement)"/>
+                    }
+                    </textarea>
+                </Field>
+                </TableRowCell>
+                <TableRowCell Width="Width.Is25">
+                <Field Horizontal VerticalAlignment="VerticalAlignment.Top">
+                    <FieldLabel></FieldLabel>
+                    <Accordion>
+                    @foreach (var type in ElementTypes)
+                    {
+                        <Collapse Visible="@collapseSate[type]">
+                            <CollapseHeader>
+                                <Heading Size="HeadingSize.Is1">
+                                    <Button Clicked="@(()=>collapseSate[type] = !collapseSate[type])">
+                                        <Div>
+                                            @type
+                                        </Div>
+                                    </Button>
+                                </Heading>
+                            </CollapseHeader>
+                            <CollapseBody>
+                                <ListGroup Flush>
+                                    @foreach (var element in domainModelElements.Elements.Where(el=>el.Type == type).ToList())
+                                    {
+                                        <ListGroupItem>
+                                            <a  onclick="@(()=>ShowCode(element))">
+                                                @element.Name
+                                            </a>
+                                        </ListGroupItem>
+                                    }
+                                </ListGroup>
+                            </CollapseBody>
+                        </Collapse>
+                    }
+                    </Accordion>
+                </Field>
+                </TableRowCell>                        
+            </TableRow>
+        </TableBody>
+    </Table>
+}    
+
+@code
+{
+    [Parameter]
+    public Guid DomainModelId { get; set; } = Guid.Empty;
+
+    private Dictionary<string,bool> collapseSate = new();
+    private List<string> ElementTypes = new();
+    private DomainModelElementsDto? domainModelElements = null;
+    private ElementDto selectedElement = null;
+    protected override async Task OnInitializedAsync()
+    {
+        if(DomainModelId!=Guid.Empty)
+        {
+            domainModelElements = await domainModelService.GetDomainModelElementsAsync(DomainModelId);
+            
+            ElementTypes = domainModelElements == null? 
+                                                    new List<string>() : 
+                                                    domainModelElements.Elements.Select(el=>el.Type)
+                                                        .Distinct()
+                                                        .ToList();
+            
+            foreach(var t in ElementTypes)
+            {
+                collapseSate.Add(t,false);
+            }
+        }
+    }
+
+
+    private List<string> GetUsingStatements(ElementDto element)
+    {
+        var parameters =  ClassDeclaration.GetParameters(element);
+        
+        if(parameters.ContainsKey("UsingStatements"))
+            return (List<string>) parameters["UsingStatements"];
+        
+        return new();
+    }
+    private void ShowCode(ElementDto element){
+        selectedElement = element;
+        StateHasChanged();
+        
+    }
+}

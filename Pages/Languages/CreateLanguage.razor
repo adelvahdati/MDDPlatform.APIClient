@@ -1,0 +1,87 @@
+@page "/CreateLanguage"
+@using ElementDto = MDDPlatform.APIClient.Dtos.Languages.ElementDto;
+@inject ILanguageService languageService
+@inject IConceptService conceptService
+<DSLManagementMenu />
+<Fields>
+    <Field>
+        <FieldLabel>Name</FieldLabel>
+        <TextEdit Placeholder="Enter language name" @bind-Text="@LanguageName" />
+    </Field>
+    <Field>
+        <FieldLabel>Version</FieldLabel>
+        <TextEdit Placeholder="Enter language version" @bind-Text="@Version" />
+    </Field>
+    <Field>
+        <FieldLabel>Select elements and create language</FieldLabel>
+        <Button class="btn btn-primary" Color="Color.Primary" @onclick="Save">Create Language</Button>
+    </Field>
+</Fields>
+@if (ElementOptions == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell></TableHeaderCell>
+                <TableHeaderCell>Concept Id</TableHeaderCell>
+                <TableHeaderCell>Concept Name</TableHeaderCell>
+                <TableHeaderCell>Concept Type</TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var option in ElementOptions)
+            {
+                <TableRow>
+                    <TableRowCell><Check TValue="bool" @bind-Checked="@option.IsSelected"></Check></TableRowCell>
+                    <TableRowCell>@option.Element.Id</TableRowCell>
+                    <TableRowCell>@option.Element.Name</TableRowCell>
+                    <TableRowCell>@option.Element.Type</TableRowCell>                    
+                </TableRow>
+
+            }
+        </TableBody>
+    </Table>
+}
+@code{
+    private List<ElementOption> ElementOptions;
+    private string LanguageName;
+    private string Version;    
+    
+    protected override async Task OnInitializedAsync()
+    {
+        ElementOptions = await GetElementOptions(); 
+    }
+    private async Task<List<ElementOption>>  GetElementOptions(){
+        var items = await conceptService.GetConceptsAsync();
+        if(items == null)
+            return new List<ElementOption>();
+        else
+            return items.Select(concept=> ElementOption.CreateFrom(concept)).ToList();
+    }
+    private async Task Save()
+    {
+        List<ElementDto> elements = new List<ElementDto>();
+        Console.WriteLine(LanguageName);
+        Console.WriteLine(Version);
+        foreach(var option in ElementOptions){
+            if(option.IsSelected)
+            {
+                Console.WriteLine(option.Element.Name + " " + option.Element.Type + " " + option.Element.Id);
+                elements.Add(option.Element);
+            }
+        }
+        NewLanguageDto language = new NewLanguageDto(LanguageName,Version,elements);
+        await languageService.CreateLanguage(language);
+        Clear();        
+    }
+    public void Clear()
+    {
+        LanguageName = "";
+        Version = "";
+        ElementOptions = ElementOptions.Select(el=>el.DeselectElement()).ToList();
+    }
+}

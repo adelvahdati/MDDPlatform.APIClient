@@ -1,0 +1,190 @@
+@page "/ExecuteProcess/{ProcessConfigurationId:guid}"
+@using Microsoft.AspNetCore.SignalR.Client;
+@using TaskStatus = MDDPlatform.APIClient.Dtos.ExecutableProcesses.TaskStatus;
+@inject IExecutableProcessService _executableProcessService;
+@inject IConfiguration configuration;
+@if(executableProcess!=null)
+{
+    <Div>
+        Process Execution 
+    </Div>
+    @if(IsConnected)
+    {
+        <Field Horizontal>
+            <FieldLabel></FieldLabel>
+            <Button class="btn btn-primary" Color="Color.Primary" @onclick="ExecuteProcessAsync" Disabled="@IsActionDisabled()">@GetActionTitle()</Button>
+        </Field>        
+        <Field Horizontal>
+            <FieldLabel></FieldLabel>
+            <Button class="btn btn-primary" Color="Color.Danger" @onclick="ResetProcessAsync">Reset Process</Button>
+        </Field>        
+    }
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Task</TableHeaderCell>
+                <TableHeaderCell>Status</TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var task in executableProcess.TaskInstances)
+            {
+                <TableRow>
+                    <TableRowCell>
+                        @task.Title
+                    </TableRowCell>
+                    <TableRowCell>
+                        <Badge Color="@GetColor(task.Status)" >
+                            @task.Status.ToString()
+                        </Badge>
+                    </TableRowCell>
+                    <TableRowCell>
+                        @if(task.Type == TaskType.ManualTask && task.Status != TaskStatus.Done)
+                        {
+                            <Button class="btn btn-primary" Color="Color.Info" Clicked="@(()=>HandleManualTask(executableProcess.Id,task.Id))">Done</Button>
+                        }
+                    </TableRowCell>
+                </TableRow>
+            }
+        </TableBody>
+    </Table>
+}else
+{
+    <Div>
+        @Message
+    </Div>
+}
+@code{
+    [Parameter]
+    public Guid ProcessConfigurationId {get;set;}
+    private ExecutableProcessDto? executableProcess;
+    private HubConnection? hubConnection;
+    private string Message = "Loading ...";
+    public bool IsConnected =>
+        hubConnection?.State == HubConnectionState.Connected;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RunProceessExecutionListener();
+        executableProcess = await _executableProcessService.GetAsync(ProcessConfigurationId);
+        if(executableProcess == null)
+            Message = "Executable Process Not Found. Please firstly, Configure the process and then, Create Executable process";
+        StateHasChanged();
+    }
+
+    private async Task RunProceessExecutionListener()
+    {
+        // var processHub = "http://localhost:5228/processhub";
+        var processHub = string.Format("{0}/processhub",configuration["Services:TransformationService"]);
+
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(new Uri(processHub))
+            .Build();
+        
+        hubConnection.On<Guid,Guid,ProcessExecutionStatus>("TaskIsExecuting",(processConfigurationId,taskId,processStatus)=>
+        {
+            if(processConfigurationId!=ProcessConfigurationId || executableProcess == null)
+                return;
+            
+            var task = executableProcess.TaskInstances.FirstOrDefault(taskInstance=>taskInstance.Id == taskId);
+            if(task == null)
+                return;
+            
+            task.Status = TaskStatus.Start;
+            executableProcess.Status = processStatus;
+            StateHasChanged();            
+        });
+
+        hubConnection.On<Guid,Guid,ProcessExecutionStatus>("TaskIsDone",(processConfigurationId,taskId,processStatus)=>
+        {
+            if(processConfigurationId!=ProcessConfigurationId || executableProcess == null)
+                return;
+            
+            var task = executableProcess.TaskInstances.FirstOrDefault(taskInstance=>taskInstance.Id == taskId);
+            if(task == null)
+                return;
+            
+            task.Status = TaskStatus.Done;
+            executableProcess.Status = processStatus;
+            StateHasChanged();            
+        });
+        hubConnection.On<Guid,Guid,ProcessExecutionStatus>("TaskIsFailed",(processConfigurationId,taskId,processStatus)=>
+        {
+            if(processConfigurationId!=ProcessConfigurationId || executableProcess == null)
+                return;
+            
+            var task = executableProcess.TaskInstances.FirstOrDefault(taskInstance=>taskInstance.Id == taskId);
+            if(task == null)
+                return;
+            
+            task.Status = TaskStatus.Failed;
+            executableProcess.Status = processStatus;
+            StateHasChanged();            
+        });
+
+        await hubConnection.StartAsync();
+    }
+
+    private async Task ExecuteProcessAsync()
+    {
+        await _executableProcessService.RunAsync(ProcessConfigurationId);
+    }
+
+    private async Task HandleManualTask(Guid processConfigurationId, Guid taskId)
+    {
+        await _executableProcessService.RunManualTask(processConfigurationId,taskId);
+    }
+    private async Task ResetProcessAsync()
+    {
+        await _executableProcessService.ResetExecutableProcessAsync(ProcessConfigurationId);
+    }
+
+    private Color GetColor(TaskStatus status)
+    {
+        if(status == TaskStatus.Start)
+            return Color.Info;
+        if(status == TaskStatus.Failed)
+            return Color.Danger;
+        if(status == TaskStatus.Done)
+            return Color.Success;
+        
+        return Color.Secondary;
+    }
+
+    private bool IsActionDisabled()
+    {
+        if(executableProcess == null)
+            return true;
+        
+        if(executableProcess.Status == ProcessExecutionStatus.Failed || executableProcess.Status == ProcessExecutionStatus.Done || executableProcess.Status == ProcessExecutionStatus.Pending)            
+            return true;
+        
+        return false;
+    }
+    private string GetActionTitle()
+    {
+        if(executableProcess == null)
+            return "Executable process not found";
+        if(executableProcess.Status == ProcessExecutionStatus.Ready)
+            return "Execute Process";
+        if(executableProcess.Status == ProcessExecutionStatus.Pending)
+            return "Handle Manual Task";
+        if(executableProcess.Status == ProcessExecutionStatus.Failed)
+            return "Process Execution Failed. Resolve the issue";
+        if(executableProcess.Status == ProcessExecutionStatus.InProgress)
+            return "Continue";
+        if(executableProcess.Status == ProcessExecutionStatus.Done)
+            return "Done";                    
+
+        return "";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+}

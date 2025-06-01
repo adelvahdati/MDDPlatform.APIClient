@@ -1,0 +1,65 @@
+@page "/QueryLanguage"
+@inject ILanguageService languageService
+<DSLManagementMenu />
+
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is2">Keywords</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is10">
+            <TextEdit Placeholder="Enter multiple keywords separated by ','" @bind-Text="@keyword"></TextEdit>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldBody>
+            <Button class="btn btn-primary" Color="Color.Primary" @onclick="FindLanguagesAsync">Search</Button>
+        </FieldBody>
+    </Field>
+</Fields>
+
+@if (languages != null)
+{
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Name</TableHeaderCell>
+                <TableHeaderCell>Version</TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var language in languages)
+            {
+                <TableRow>
+                    <TableRowCell>
+                        <a href="@string.Format(language_detail_page,language.Id)">
+                            @language.Name
+                        </a>
+                    </TableRowCell>
+                    <TableRowCell>@language.Version</TableRowCell>
+                </TableRow>
+
+            }
+        </TableBody>
+    </Table>
+}
+
+@code {
+    private string keyword="";
+    private List<LanguageDto>? languages = null;
+    
+    private string language_detail_page = "/LanguageDetail/{0}";
+
+    @* protected override async Task OnInitializedAsync()
+    {
+
+    } *@
+    private async Task FindLanguagesAsync(){
+        if(!string.IsNullOrEmpty(keyword)){
+            languages =  await languageService.FindLanguagesAsync(keyword);
+            StateHasChanged();
+        }
+            
+    }
+}

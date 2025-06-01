@@ -1,0 +1,189 @@
+@page "/ViewPipeline/{PipelineId:guid}"
+@using Microsoft.AspNetCore.SignalR.Client
+@inject IPipelineService _pipelineService;
+@inject IConfiguration configuration;
+<PipelineManagementMenu/>
+@if(pipeline == null)
+{
+    <p><em>Loading...</em></p>
+}else
+{
+    <Div>
+        @pipeline.Title
+    </Div>
+    @if(IsConnected)
+    {
+        <Field Horizontal>
+            <FieldLabel></FieldLabel>
+            <Button class="btn btn-primary" Color="Color.Primary" @onclick="ExecutePipeline" Disabled="@IsActionDisabled()">@GetActionTitle()</Button>
+        </Field>        
+        <Field Horizontal>
+            <FieldLabel></FieldLabel>
+            <Button class="btn btn-primary" Color="Color.Danger" @onclick="ResetPipeline">Reset Pipeline</Button>
+        </Field>        
+    }
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Stage</TableHeaderCell>
+                <TableHeaderCell>Status</TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var stage in pipeline.Stages)
+            {
+                <TableRow>
+                    <TableRowCell>
+                        @if(stage.Type == StageType.Automatic)
+                        {
+                            <a href="@(string.Format(execute_pattern_instnce_page,stage.TaskId))">
+                                    @stage.Title
+                            </a>
+                        }else
+                        {
+                            @stage.Title
+                        }
+                    </TableRowCell>
+                    <TableRowCell>
+                        <Badge Color="@GetColor(stage.Status)" >
+                            @stage.Status.ToString()
+                        </Badge>
+                    </TableRowCell>
+                    <TableRowCell>
+                        @if(stage.Type == StageType.Manual && stage.Status != StageStatus.Done)
+                        {
+                            <Button class="btn btn-primary" Color="Color.Info" Clicked="@(()=>HandleManualStage(pipeline.Id,stage.Id))">Done</Button>
+                        }
+                    </TableRowCell>
+                </TableRow>
+            }
+        </TableBody>
+    </Table>
+}
+@code {
+    [Parameter]
+    public Guid PipelineId {get;set;}
+    private HubConnection? hubConnection;
+
+    private PipelineDto? pipeline = null;
+    private string execute_pattern_instnce_page = "/ExecutePattern/{0}";
+    protected override async Task OnInitializedAsync()
+    {
+       await RunPipelineListeners();   
+       pipeline = await _pipelineService.GetPipelineAsync(PipelineId);
+       StateHasChanged();
+    }
+
+    private Color GetColor(StageStatus status)
+    {
+        if(status == StageStatus.Start)
+            return Color.Info;
+        if(status == StageStatus.Failed)
+            return Color.Danger;
+        if(status == StageStatus.Done)
+            return Color.Success;
+        
+        return Color.Secondary;
+    }
+    private async Task RunPipelineListeners()
+    {
+        // var pipelineHub = "http://localhost:5228/pipelinehub";
+        var pipelineHub = string.Format("{0}/pipelinehub",configuration["Services:TransformationService"]);
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(new Uri(pipelineHub))
+            .Build();
+
+        hubConnection.On<Guid, Guid,PipelineStatus>("PipelineStageStarted", (pipelineId, stageId,pipelineStatus) =>
+        {
+            Console.WriteLine($"Pipeline = {pipelineId}, Stage = {stageId}, Status = Started");
+            if(PipelineId != pipelineId || pipeline==null)
+                return;
+            var stage = pipeline.Stages.Find(st=>st.Id == stageId);
+            if(stage == null)
+                return;
+            
+            stage.Status = StageStatus.Start;
+            pipeline.Status = pipelineStatus;
+            StateHasChanged();
+        });
+        hubConnection.On<Guid, Guid,PipelineStatus>("PipelineStageFailed", (pipelineId, stageId,pipelineStatus) =>
+        {
+            Console.WriteLine($"Pipeline = {pipelineId}, Stage = {stageId}, Status = Failed");
+            if(PipelineId != pipelineId || pipeline==null)
+                return;
+            var stage = pipeline.Stages.Find(st=>st.Id == stageId);
+            if(stage == null)
+                return;
+            
+            stage.Status = StageStatus.Failed;
+            pipeline.Status = pipelineStatus;
+            StateHasChanged();
+        });
+        hubConnection.On<Guid, Guid,PipelineStatus>("PipelineStageIsDone", (pipelineId, stageId,pipelineStatus) =>
+        {
+            Console.WriteLine($"Pipeline = {pipelineId}, Stage = {stageId}, Status = Done");
+            if(PipelineId != pipelineId || pipeline==null)
+                return;
+            var stage = pipeline.Stages.Find(st=>st.Id == stageId);
+            if(stage == null)
+                return;
+            
+            stage.Status = StageStatus.Done;
+            pipeline.Status = pipelineStatus;
+            StateHasChanged();
+        });
+        await hubConnection.StartAsync();
+    }
+    public bool IsConnected =>
+        hubConnection?.State == HubConnectionState.Connected;
+
+    private async Task ExecutePipeline()
+    {
+        await _pipelineService.ExecutePipelineAsync(PipelineId);
+    }
+    private async Task ResetPipeline()
+    {
+        await _pipelineService.ResetPipelineAsync(PipelineId);
+        pipeline = await _pipelineService.GetPipelineAsync(PipelineId);
+        StateHasChanged();
+    }
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+    private async Task HandleManualStage(Guid pipelineId,Guid stageId)
+    {
+        await _pipelineService.RunManualStageAsync(pipelineId,stageId);
+    }
+    private bool IsActionDisabled()
+    {
+        if(pipeline == null)
+            return true;
+        
+        if(pipeline.Status == PipelineStatus.Failed || pipeline.Status == PipelineStatus.Done || pipeline.Status == PipelineStatus.Pending)            
+            return true;
+        
+        return false;
+    }
+    private string GetActionTitle()
+    {
+        if(pipeline == null)
+            return "Pipeline not found";
+        if(pipeline.Status == PipelineStatus.Ready)
+            return "Execute Pipeline";
+        if(pipeline.Status == PipelineStatus.Pending)
+            return "Handle Manual Stage";
+        if(pipeline.Status == PipelineStatus.Failed)
+            return "Pipeline Failed. Resolve the issue";
+        if(pipeline.Status == PipelineStatus.InProgress)
+            return "Continue";
+        if(pipeline.Status == PipelineStatus.Done)
+            return "Done";                    
+
+        return "";
+    }
+}

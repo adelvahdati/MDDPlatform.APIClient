@@ -1,0 +1,62 @@
+@page "/ListPipeline"
+@page "/ListPipeline/{ProblemDomainId:guid}"
+@inject IPipelineService _pipelineService;
+<PipelineManagementMenu/>
+@if(pipelines == null)
+{
+    <p><em>Loading...</em></p>
+}else
+{
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Title</TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var pipeline in pipelines)
+            {
+                <TableRow>
+                    <TableRowCell>
+                        <a href="@(string.Format(pipeline_page_url,pipeline.Id))">
+                                @pipeline.Title
+                        </a>
+                    </TableRowCell>
+                    <TableRowCell>
+                        <a href="@(string.Format(edit_pipeline_page_url,pipeline.Id))">
+                                Edit
+                        </a>
+                    </TableRowCell>
+                    <TableRowCell><Button Color="Color.Danger" Clicked="@(e=> DeletePipeline(pipeline.Id))">Delete</Button></TableRowCell>
+                </TableRow>
+            }
+        </TableBody>
+    </Table>
+}
+@code
+{
+    [Parameter]
+    public Guid ProblemDomainId {get;set;}
+    private List<PipelineDto>? pipelines = null;
+    private string pipeline_page_url = "ViewPipeline/{0}";
+    private string edit_pipeline_page_url = "EditPipeline/{0}";
+    protected override async Task OnInitializedAsync()
+    {
+        await GetPipelines();        
+    }
+    private async Task DeletePipeline(Guid pipelineId)
+    {
+        await _pipelineService.DeletePipelineAsync(pipelineId);
+        await GetPipelines();
+    }
+    private async Task GetPipelines()
+    {
+        if(ProblemDomainId == null || ProblemDomainId == Guid.Empty)
+            pipelines = await _pipelineService.GetPipelinesAsync();
+        else
+            pipelines = await _pipelineService.GetProblemDomainPipelinesAsync(ProblemDomainId);            
+       StateHasChanged();
+    }
+}

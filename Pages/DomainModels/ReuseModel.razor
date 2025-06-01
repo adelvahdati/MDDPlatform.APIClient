@@ -1,0 +1,128 @@
+@page "/ReuseModel/{DomainModelId:guid}"
+@inject IProblemDomainService _problemDomainService;
+@inject IDomainService domainService;
+@inject IDomainModelService _domainModelService;
+
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is2">Problem Domains</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is10">
+                <Select TValue="Guid" SelectedValueChanged="@((args) => SelectProblemDomain(args))">
+                    <SelectItem Value="@(Guid.Empty)">-- Select Problem Domain --</SelectItem>
+                    @if (problemDomainOptions != null)
+                    {
+                        @foreach (var item in problemDomainOptions)
+                        {
+                            <SelectItem Value="@item.Id" TValue="Guid">@item.Title</SelectItem>
+                        }
+                    }
+                </Select>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is2">Sub Domains</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is10">
+                <Select TValue="Guid" SelectedValueChanged="@((args) => SelectSubDomain(args))">
+                    <SelectItem Value="@(Guid.Empty)">-- Select Sub Domain --</SelectItem>
+                    @if (subDomainOptions != null)
+                    {
+                        @foreach (var item in subDomainOptions)
+                        {
+                            <SelectItem Value="@item.Id" TValue="Guid">@item.Name</SelectItem>
+                        }
+                    }
+                </Select>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is2">Sub Domains</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is10">
+                <Select TValue="Guid" SelectedValueChanged="@((args) => SelectModel(args))">
+                    <SelectItem Value="@(Guid.Empty)">-- Destination Model --</SelectItem>
+                    @if (models != null)
+                    {
+                        @foreach (var item in models)
+                        {
+                            <SelectItem Value="@item.Id" TValue="Guid">@item.Name - (Type : @item.Type) - (Language -> @item.Language.Name)</SelectItem>
+                        }
+                    }
+                </Select>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldBody>
+            <Button class="btn btn-primary" Color="Color.Primary" @onclick="ReuseModelAsync">Reuse</Button>
+        </FieldBody>
+    </Field>
+</Fields>
+
+@code 
+{
+    [Parameter]
+    public Guid DomainModelId {get;set;}
+
+    public Guid DestinationModelId {get;set;}
+
+    private List<ProblemDomainDto>? problemDomainOptions = null;
+    private IEnumerable<SubDomainDto>? subDomainOptions = null;
+    private List<ModelDto>? models = null;
+
+    private Guid SelectedProblemDomainId;
+    private Guid SelectedDomainId;
+    private ModelFilterDto filter;    
+    protected override async Task OnInitializedAsync()
+    {
+        filter = new();
+        await GetProblemDomainsAsync();
+    }
+    private async Task GetProblemDomainsAsync()
+    {
+        var items = await _problemDomainService.GetProblemDomainsAsync();
+        if (items == null)
+            problemDomainOptions = new();
+        else
+            problemDomainOptions = items.ToList();
+    }
+    private async Task SelectProblemDomain(Guid problemDomainId)
+    {
+        SelectedProblemDomainId = problemDomainId;
+        if(problemDomainId!=Guid.Empty)
+        {
+            subDomainOptions = await _problemDomainService.GetSubDomainsAsync(problemDomainId);
+            filter.SetProblemDomain(problemDomainId);
+        }else
+        {
+            subDomainOptions = null;
+            filter.ResetProblemDomain();
+        }
+        filter.ResetDomain();
+        StateHasChanged();
+    }
+    private async Task SelectSubDomain(Guid domainId)
+    {
+        if(domainId!=Guid.Empty)
+        {
+            filter.SetDomain(domainId);
+            models = await domainService.FindModelsAsync(filter);
+            StateHasChanged();
+        }
+        else
+            filter.ResetDomain();        
+    }
+    private void SelectModel(Guid modelId){
+        DestinationModelId = modelId;
+    }
+
+    private async Task ReuseModelAsync(){
+        if(DomainModelId!=Guid.Empty && DestinationModelId!=Guid.Empty)
+            await _domainModelService.ReuseModelAsync(DomainModelId,DestinationModelId);
+            
+        
+    }
+}

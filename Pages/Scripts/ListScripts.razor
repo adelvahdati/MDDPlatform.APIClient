@@ -1,0 +1,112 @@
+@page "/ListScripts"
+@page "/ListScripts/{DomainModelId:guid}"
+@using System.Text
+@inject IScriptManagementService _scriptService;
+<ProblemDomainManagementMenu/>
+@if(scripts==null)
+{
+    <p>Loading ...</p>
+}else
+{
+    <Table>
+        <TableHeader>
+            <TableHeaderCell>Title</TableHeaderCell>
+            <TableHeaderCell></TableHeaderCell>
+            <TableHeaderCell></TableHeaderCell>
+            <TableHeaderCell></TableHeaderCell>
+        </TableHeader>
+        <TableBody>
+            @foreach (var script in scripts)
+            {
+                <TableRow>
+                    <TableRowCell>@script.Title</TableRowCell>
+                    <TableRowCell>
+                        <Button Color="Color.Danger" Clicked="@(e=> DeleteScript(script.Id))">Delete</Button>
+                    </TableRowCell>
+                    <TableRowCell>
+                        <Button Color="Color.Info" Clicked="@(e=> ViewScript(script.Id))">View</Button>
+                    </TableRowCell>
+                    <TableRowCell>
+                        <Button Color="Color.Primary" Clicked="@(e=> RunScript(script.Id))">Run</Button>
+                    </TableRowCell>
+                    <TableRowCell>
+                        <a href="@string.Format(edit_script_page,script.Id)">Edit</a>
+                    </TableRowCell>
+                </TableRow>
+            }
+        </TableBody>
+    </Table>
+}
+<Modal @bind-Visible="@showScriptCode">
+    <ModalContent Size="ModalSize.ExtraLarge">
+        <ModalHeader>
+            <ModalTitle>Instructions</ModalTitle>
+            <CloseButton/>
+        </ModalHeader>
+        <ModalBody>
+            <MemoEdit Rows="12" @bind-Text="script_code" Disabled>
+            </MemoEdit>
+        </ModalBody>
+    </ModalContent>
+</Modal>
+@code 
+{
+    [Parameter]
+    public Guid DomainModelId {get;set;}
+    private bool showScriptCode = false;
+    private string script_code = "";
+    private List<ScriptDto>? scripts = null;
+    private string edit_script_page = "/EditScript/{0}";
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadScripts();
+    }
+    private async Task LoadScripts()
+    {
+        if(DomainModelId==null || DomainModelId == Guid.Empty)
+            await GetScripts();
+        else
+            await GetDomainModelScripts();
+    }
+    private async Task DeleteScript(Guid scriptId)
+    {
+        await _scriptService.DeleteScriptAsync(scriptId);
+        await LoadScripts();
+
+    }
+    private async Task GetScripts()
+    {
+        scripts = await _scriptService.ListScriptsAsync();
+        if(scripts == null)
+            scripts = new();            
+        StateHasChanged();
+    }
+    private async Task GetDomainModelScripts(){
+        scripts = await _scriptService.ListDomainModelScripts(DomainModelId);
+        if(scripts == null)
+            scripts = new();            
+        StateHasChanged();
+    }
+    private void ViewScript(Guid scriptId)
+    {
+        if(scripts == null)
+            return;
+
+        var script = scripts.Where(scr=>scr.Id == scriptId).FirstOrDefault();
+        if(script==null)
+            return;
+        
+        var builder = new StringBuilder();
+        foreach(var instruction in script.Instructions)
+        {
+            Console.WriteLine(instruction.Code);
+            builder.AppendLine(instruction.ToString());
+        }
+        script_code = builder.ToString();
+        showScriptCode = true;
+    }
+    private async Task RunScript(Guid scriptId)
+    {
+        await _scriptService.RunScriptAsync(scriptId);
+    }
+}

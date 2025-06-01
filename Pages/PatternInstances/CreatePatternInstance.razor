@@ -1,0 +1,411 @@
+@page "/Pattern/{PatternId:guid}/Intstances"
+@using ConceptDto = Dtos.DomainModels.ConceptDto;
+@using PropertyDto = Dtos.DomainConcepts.PropertyDto;
+@using RelationDto = Dtos.DomainConcepts.RelationDto;
+@using OperationDto = Dtos.DomainConcepts.OperationDto;
+@inject IProblemDomainService _problemDomainService;
+@inject IDomainService _domainService;
+@inject IPatternService _patternService;
+@inject IDomainModelService _domainModelService;
+@inject IDomainConceptService _domainConceptService;
+<PageTitle>Pattern Instances</PageTitle>
+
+<PatternManagementMenu/>
+
+@if (pattern != null)
+{
+    <Fields>
+        <Field Horizontal>
+            <FieldLabel ColumnSize="ColumnSize.Is4">Problem Domains</FieldLabel>
+            <FieldBody ColumnSize="ColumnSize.Is8">
+                @if (problemDomainOptions != null)
+                {
+                    <Select TValue="Guid" SelectedValueChanged="@((args) => SelectProblemDomain(args))">
+                        <SelectItem Value="@(Guid.Empty)">-- Select Problem Domain --</SelectItem>
+                        @foreach (var item in problemDomainOptions)
+                        {
+                            <SelectItem Value="@item.Id" TValue="Guid">@item.Title</SelectItem>
+                        }
+                    </Select>
+                }
+            </FieldBody>
+        </Field>
+    </Fields>
+    <Fields>
+        <Field Horizontal>
+            <FieldLabel ColumnSize="ColumnSize.Is4">Pattern Instance Title</FieldLabel>
+            <FieldBody ColumnSize="ColumnSize.Is8">
+                <TextEdit @bind-Text="@patternInstance.Title"></TextEdit>
+            </FieldBody>
+        </Field>
+    </Fields>
+    <Fields>
+        <Field Horizontal>
+            <FieldLabel ColumnSize="ColumnSize.Is4">Pattern Instnace Name</FieldLabel>
+            <FieldBody ColumnSize="ColumnSize.Is8">
+                <TextEdit @bind-Text="@patternInstance.Name"></TextEdit>
+            </FieldBody>
+        </Field>
+    </Fields>
+
+    <Div><b>@pattern.Name</b> : @pattern.Description</Div>
+    <Divider></Divider>
+    foreach (var field in pattern.Fields)
+    {
+        <Fields>
+            <Field Horizontal>
+                <FieldLabel ColumnSize="ColumnSize.Is4">@field.Name</FieldLabel>
+                <FieldBody ColumnSize="ColumnSize.Is8">
+                    @if ((field.Type == FieldType.InputModel || field.Type == FieldType.OutputModel) && domainModelOptions!=null)
+                    {
+                        <Select TValue="Guid" SelectedValueChanged="@((args)=>SelectModel(field.Name,args))">
+                            <SelectItem Value="@(Guid.Empty)">@OptionHint(field.Type)</SelectItem>
+                            @foreach (var item in domainModelOptions)
+                            {
+                                <SelectItem Value="@item.Id" TValue="Guid">@item.Name</SelectItem>
+                            }
+                        </Select>
+                    }
+                    else if((field.Type == FieldType.InputType || field.Type == FieldType.OutputType) && conceptTypeOptions!=null)
+                    {
+                        <Select TValue="Guid" SelectedValueChanged="@((args)=>SelectType(field.Name,args))">
+                            <SelectItem Value="@(Guid.Empty)">@OptionHint(field.Type)</SelectItem>
+                            @foreach (var item in conceptTypeOptions)
+                            {
+                                <SelectItem Value="@item.Concept.Id">@item.Concept.Name</SelectItem>
+                            }
+                        </Select>
+                    }
+                    else if((field.Type == FieldType.InputTypeProperty || field.Type == FieldType.OutputTypeProperty) && propertyOptions!=null)
+                    {
+                        <Select TValue="string" @bind-SelectedValue="@fieldValues[field.Name]">
+                            <SelectItem Value="@("")">@OptionHint(field.Type)</SelectItem>
+                            @foreach (var item in propertyOptions)
+                            {
+                                <SelectItem Value="@item.Name">@item.Name : @item.Type</SelectItem>
+                            }
+                        </Select>
+                    }
+                    else if((field.Type == FieldType.InputTypeRelation || field.Type == FieldType.OutputTypeRelation) && relationsOptions!=null)
+                    {
+                        <Select TValue="string" @bind-SelectedValue="@fieldValues[field.Name]">
+                            <SelectItem Value="@("")">@OptionHint(field.Type)</SelectItem>
+                            @foreach (var item in relationsOptions)
+                            {
+                                <SelectItem Value="@item.Name">@item.Name -> @item.Target</SelectItem>
+                            }
+                        </Select>
+                    }
+                    else if((field.Type == FieldType.InputTypeOperation || field.Type == FieldType.OutputTypeOperation) && operationOptions!=null)
+                    {
+                        <Select TValue="string" @bind-SelectedValue="@fieldValues[field.Name]">
+                            <SelectItem Value="@("")">@OptionHint(field.Type)</SelectItem>
+                            @foreach (var item in operationOptions)
+                            {
+                                <SelectItem Value="@item.Name">@item.Name</SelectItem>
+                            }
+                        </Select>
+                    }
+                    else if(field.Type == FieldType.OutputTypePropertyValue)
+                    {
+                        @* <PropertyValueComponent @bind-MemberValues="memberValues" TextChanged="@((value)=>SetFieldValue(field.Name,value))"></PropertyValueComponent>                         *@
+                        <PropertyValueComponent @bind-MemberValues="MemberValuesDictionary[field.Name]" TextChanged="@((value)=>SetFieldValue(field.Name,value))"></PropertyValueComponent>                        
+
+                    }
+                    else
+                    {
+                        <TextEdit Placeholder="@(field.Label)" @bind-Text="@fieldValues[field.Name]"></TextEdit>
+                    }
+                </FieldBody>
+            </Field>
+        </Fields>
+    }
+    <Fields>
+        <Field Horizontal>
+            <FieldBody>
+                <Button class="btn btn-primary" Color="Color.Primary" @onclick="CreateInstance">Create Pattern Instance</Button>
+            </FieldBody>
+        </Field>
+    </Fields>
+}
+@if(instances==null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Name</TableHeaderCell>
+                <TableHeaderCell>Title</TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var instance in instances)
+            {
+                <TableRow>
+                    <TableRowCell>
+                        <a href="@(string.Format(pattern_instance_execution_url_page,instance.Id))">
+                            @instance.Name
+                        </a>                        
+                    </TableRowCell>
+                    <TableRowCell>@instance.Title</TableRowCell>
+                    <TableRowCell><Button Color="Color.Danger" Clicked="@(e=> DeleteInstance(instance.Id))" Active=false>Delete</Button></TableRowCell>
+                </TableRow>
+
+            }
+        </TableBody>
+    </Table>
+}
+
+@code {
+    [Parameter]
+    public Guid PatternId { get; set; }
+    private string pattern_instance_execution_url_page = "/ExecutePattern/{0}";
+    private NewPatternInstanceDto patternInstance = new();
+    private PatternDto? pattern;
+    private List<PatternInstanceDto>? instances = null;
+    private Dictionary<string, string> fieldValues = new Dictionary<string, string>();
+
+    private Guid SelectedProblemDomainId;
+    private List<ProblemDomainDto>? problemDomainOptions = null;
+
+    //Key : ProblemdDomainId
+    private Dictionary<Guid, List<ModelDto>> problemDomainModelsDictionary = new();    
+    private List<ModelDto>? domainModelOptions = null;
+    //Key : FieldName (of types equal to InputModel or OutputModel)
+    private Dictionary<string,ModelDto> selectedModelsDictionary = new();
+
+
+
+
+    // Key : ModelId   
+    private Dictionary<Guid,List<ConceptDto>> modelTypesDictionary = new();
+    //private List<ConceptDto> conceptTypeOptions = null;
+    private List<ConceptTypeOption> conceptTypeOptions = null;
+    //Key : FieldName (of types equal to InputType or OutputType)
+    //private Dictionary<string,ConceptDto> selectedTypesDictionary = new();
+    private Dictionary<string,ConceptTypeOption> selectedTypesDictionary = new();
+    
+
+    private Dictionary<Guid,DomainConceptDto> domainConceptsDictionary = new();
+    private List<PropertyDto> propertyOptions = null;
+    private List<RelationDto> relationsOptions = null;
+    private List<OperationDto> operationOptions = null;        
+
+    @* public List<MemberValueExpression> memberValues = new(); *@
+    public Dictionary<string,List<MemberValueExpression>> MemberValuesDictionary = new();
+
+    private void SetFieldValue(string fieldName,string fieldValue){
+            fieldValues[fieldName] = fieldValue;
+            Console.WriteLine($"{fieldName} = {fieldValue}");
+    }
+    protected override async Task OnInitializedAsync()
+    {
+        await GetPatternInstances(PatternId);
+        await GetProblemDomains();
+    }
+    private async Task GetPatternInstances(Guid patternId)
+    {
+        pattern = await _patternService.GetPatternAsync(PatternId);
+        fieldValues = new();
+        if (pattern != null)
+        {
+            foreach (var field in pattern.Fields)
+            {
+                fieldValues.Add(field.Name, "");
+                if(field.Type == FieldType.OutputTypePropertyValue)
+                {
+                    if(MemberValuesDictionary.ContainsKey(field.Name))
+                        MemberValuesDictionary[field.Name] = new();
+                    else
+                        MemberValuesDictionary.Add(field.Name,new List<MemberValueExpression>());
+                }
+            }
+        }
+        var items = await _patternService.ListPatternInstancesAsync(patternId);
+        if (items == null)
+            instances = new List<PatternInstanceDto>();
+        else
+            instances = items;
+    }
+    private async Task GetProblemDomains()
+    {
+        var items = await _problemDomainService.GetProblemDomainsAsync();
+        if (items == null)
+        {
+            problemDomainOptions = new();
+            SelectedProblemDomainId = Guid.Empty;
+        }
+        else
+        {
+            problemDomainOptions = items.ToList();
+            SelectedProblemDomainId = problemDomainOptions[0].Id;
+        }
+    }
+    private async Task SelectProblemDomain(Guid problemDomainId){
+        SelectedProblemDomainId = problemDomainId;
+        await UpdateDomainModelOptions();
+    }
+    private async Task UpdateDomainModelOptions()
+    {
+        if (problemDomainOptions == null)
+        {
+            domainModelOptions = null;
+            return;
+        }
+        if (problemDomainModelsDictionary.ContainsKey(SelectedProblemDomainId))
+        {
+            domainModelOptions = problemDomainModelsDictionary[SelectedProblemDomainId];
+            return;
+        }
+        ProblemDomainDto? problemDomainDto = problemDomainOptions.Find(problemDomain => problemDomain.Id == SelectedProblemDomainId);
+        if (problemDomainDto == null)
+        {
+            domainModelOptions = null;
+            return;
+        }
+        List<ModelDto> models = new List<ModelDto>();
+        foreach (var subDomain in problemDomainDto.SubDomains)
+        {
+            var items = await _domainService.GetDomainModelsAsync(subDomain.Id);
+            if (items != null)
+                models.AddRange(items);
+        }
+        problemDomainModelsDictionary.Add(SelectedProblemDomainId, models);
+        domainModelOptions = models;
+    }
+    private async Task SelectModel(string fieldName, Guid modelId){
+        fieldValues[fieldName] = modelId.ToString();
+        if(domainModelOptions==null)
+            return;
+        
+        var model = domainModelOptions.Find(model=>model.Id==modelId);
+        if(model == null)
+            return;
+
+        if(selectedModelsDictionary.ContainsKey(fieldName))
+            selectedModelsDictionary[fieldName] = model;
+        else
+            selectedModelsDictionary.Add(fieldName,model);
+
+        await UpodateConceptTypeOptions();
+    }
+    private async Task UpodateConceptTypeOptions()
+    {
+        Console.WriteLine("UpdateModelTypesOptions ...");
+        var concepts = new List<ConceptTypeOption>();
+        var selectedModels = selectedModelsDictionary.Values.ToHashSet();    
+        foreach(var model in selectedModels)
+        {
+            if(!modelTypesDictionary.ContainsKey(model.Id))
+            {
+                DomainModelDto? domainModel = await _domainModelService.GetDomainModelById(model.Id);
+                if(domainModel!=null)
+                    modelTypesDictionary.Add(domainModel.Id,domainModel.Concepts);                
+            }
+            if(modelTypesDictionary.ContainsKey(model.Id))
+            {
+                var items = modelTypesDictionary[model.Id].Select(c=> new ConceptTypeOption{ModelId = model.Id,Concept=c}).ToList();
+                concepts.AddRange(items);
+            }
+                
+        }
+        conceptTypeOptions = concepts;
+        Console.WriteLine("Type options : " + concepts.Count);
+    }
+    private async Task SelectType(string fieldName,Guid conceptId)
+    {
+        
+        if(conceptTypeOptions == null)
+            return;
+        
+        var conceptTypeOption = conceptTypeOptions.Find(typeOption=>typeOption.Concept.Id == conceptId);
+        if(conceptTypeOption == null)
+            return;
+        fieldValues[fieldName] = conceptTypeOption.Concept.GetFullName();
+        if(selectedTypesDictionary.ContainsKey(fieldName))
+            selectedTypesDictionary[fieldName] = conceptTypeOption;
+        else
+            selectedTypesDictionary.Add(fieldName,conceptTypeOption);
+
+        
+        await UpodateTypeSpecificationsOptions();        
+    }
+    private async Task UpodateTypeSpecificationsOptions()
+    {
+        var selectedTypes = selectedTypesDictionary.Values.ToHashSet();
+        var properties = new List<PropertyDto>();
+        var relations = new List<RelationDto>();
+        var operations = new List<OperationDto>();
+        foreach(var option in selectedTypes)
+        {
+            Guid conceptId = option.Concept.Id;
+            Guid modelId = option.ModelId;
+            if(!domainConceptsDictionary.ContainsKey(conceptId))
+            {
+                DomainConceptDto? domainConceptDto = await _domainConceptService.GetDomainConceptByIdAsync(modelId,conceptId);
+                if(domainConceptDto!=null)
+                {
+                    domainConceptsDictionary.Add(conceptId,domainConceptDto);
+                }
+            }
+            if(domainConceptsDictionary.ContainsKey(conceptId))
+            {
+                var domainConcept=domainConceptsDictionary[conceptId];
+                properties.AddRange(domainConcept.Properties);
+                relations.AddRange(domainConcept.Relations);
+                operations.AddRange(domainConcept.Operations);
+            }
+        }
+        propertyOptions = properties;
+        relationsOptions = relations;
+        operationOptions = operations;
+    }
+    private async Task CreateInstance(){
+        if(pattern ==null)
+            return;
+
+        patternInstance.ProblemDomainId = SelectedProblemDomainId;
+        patternInstance.PatternId = PatternId;
+        patternInstance.PatternName = pattern.Name;
+        foreach(var item in fieldValues)
+        {
+            Console.WriteLine("{0} = {1}",item.Key,item.Value);
+            patternInstance.FieldValues.Add(new FieldValueDto(item.Key ,item.Value));
+        }
+        await _patternService.CreatePatternInstanceAsync(patternInstance);        
+        await GetPatternInstances(PatternId);
+        StateHasChanged();
+    }
+    private async Task DeleteInstance(Guid instanceId)
+    {
+        await _patternService.DeletePatternInstanceAsync(instanceId);
+        await GetPatternInstances(PatternId);
+        StateHasChanged();
+    }
+    internal class ConceptTypeOption
+    {
+        public Guid ModelId {get;set;}
+        public ConceptDto Concept {get;set;}
+    }
+    private string OptionHint(FieldType type)
+    {
+        if(type == FieldType.InputModel)
+            return "--- Select Input Model ---";
+        if(type == FieldType.OutputModel)
+            return "--- Select Output Model ---";
+        if(type == FieldType.InputType)
+            return "--- Select Input Type ---";
+        if(type == FieldType.OutputType)
+            return "--- Select Output Type ---";
+        if(type == FieldType.InputTypeRelation)
+            return "--- Select Input Type Relation ---";
+        if(type == FieldType.OutputTypeRelation)
+            return "--- Select Output Type Relation ---";
+
+        return "--- Select Option ---";
+    }
+}

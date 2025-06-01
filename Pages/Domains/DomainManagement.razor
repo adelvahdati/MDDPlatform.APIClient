@@ -1,0 +1,238 @@
+@page "/DomainManagement/{domainId:guid}/{domainName}"
+@inject IDomainService domainService;
+@inject ILanguageService languageService;
+@inject IDomainModelService domainModelService;
+<ProblemDomainManagementMenu/>
+<Div>
+    <b>@domainName</b>
+    <a href="@(string.Format(create_package_url,domainId))">Create Package</a>
+</Div>
+
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is2">Name</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is10">
+            <TextEdit Placeholder="Enter the name of model" @bind-Text="@modelName"></TextEdit>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is2">Tag</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is10">
+            <TextEdit Placeholder="Assign a tag to the model" @bind-Text="@modelTag"></TextEdit>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is2">Type</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is10">
+            <Select @bind-SelectedValue="@modelType">
+                <SelectItem TValue="string" Value="@("")">-- Select Type Of Model --</SelectItem>
+                <SelectItem TValue="string">@("CIM")</SelectItem>
+                <SelectItem TValue="string">@("PIM")</SelectItem>
+                <SelectItem TValue="string">@("PSM")</SelectItem>
+                <SelectItem TValue="string">@("Code")</SelectItem>
+            </Select>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is2">Sub-level</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is10">
+            <NumericPicker @bind-Value="@level" Decimals="0" Min="1"></NumericPicker>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is2">Language</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is10">
+            @if (languages != null)
+            {
+                <Select @bind-SelectedValue="@languageId">
+                    @foreach (var item in languages)
+                        {
+                            <SelectItem Value="@item.Id" TValue="Guid">@item.Name - @item.Version</SelectItem>
+                        }
+                    </Select>
+            }
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldBody>
+            <Button class="btn btn-primary" Color="Color.Primary" @onclick="CreateModel">Create Domain Model</Button>
+            <Alert @bind-Visible="@showAlert" Color="Color.Info">
+                <AlertMessage>
+                    @alertMessage
+                </AlertMessage>
+                <CloseButton Clicked="@CloseAlertWindow" />
+            </Alert>
+        </FieldBody>
+    </Field>
+</Fields>
+@if (models == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Name</TableHeaderCell>
+                <TableHeaderCell>Tag</TableHeaderCell>
+                <TableHeaderCell>Type</TableHeaderCell>
+                <TableHeaderCell>Level</TableHeaderCell>
+                <TableHeaderCell>Language</TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var model in models)
+            {
+                <TableRow>
+                    @if(model.Language.IsBuiltin)
+                    {
+                        <TableRowCell>
+                            <a href="@(string.Format(builtin_model_url,model.Id))">
+                                @model.Name
+                            </a>
+                        </TableRowCell>
+                    }else
+                    {
+                        <TableRowCell>
+                            <a href="@(string.Format(base_url,model.Id))">
+                                @model.Name
+                            </a>
+                        </TableRowCell>
+                    }
+                    <TableRowCell>@model.Tag</TableRowCell>
+                    <TableRowCell>@model.Type</TableRowCell>
+                    <TableRowCell>@model.Level</TableRowCell>
+                    <TableRowCell>@model.Language.Name</TableRowCell>
+                    <TableRowCell>
+                        <Button Color="Color.Danger" Clicked="@(()=>DeleteModel(domainId,model.Id))">Delete</Button>
+                    </TableRowCell>
+                    <TableRowCell>
+                        <Tooltip Text="Update Model Based on Metamodel Changes">
+                            <Button Color="Color.Primary" Clicked="@(()=>UpdateModelLanguage(model.Id,model.Language.Id))">Update</Button>
+                        </Tooltip>
+                    </TableRowCell>
+                </TableRow>
+            }
+        </TableBody>
+    </Table>
+}
+
+@code
+{
+    [Parameter]
+    public Guid domainId { get; set; }
+    [Parameter]
+    public string domainName { get; set; }
+    private string base_url = "/DomainSpecificModel/{0}";
+    private string builtin_model_url = "/BuiltinModel/{0}";
+    private string create_package_url = "/CreatePackagesFromDomain/{0}";
+    private List<ModelDto>? models = null;
+    private string modelName = string.Empty;
+    private string modelTag = string.Empty;
+    private string modelType = string.Empty;
+    private int level = 1;
+    private List<LanguageDto>? languages = null;
+    private Guid languageId;
+    private bool showAlert = false;
+    private string alertMessage = "";
+    private void CloseAlertWindow(){
+        showAlert = false;
+        alertMessage = "";
+
+    }
+    private void ShowAlertWindow(string message){
+        alertMessage = message;
+        showAlert = true;
+    }
+    protected override async Task OnInitializedAsync()
+    {
+        await GetLanguages();
+        await GetDomainModelsAsync();
+    }
+
+    private async Task GetDomainModelsAsync()
+    {
+        //Guid id = Guid.Parse(domainId);
+        var domain = await domainService.GetDomainAsync(domainId);
+        Console.WriteLine(domain);
+        if (domain == null)
+            models = new List<ModelDto>();
+        else if (domain.Models == null)
+            models = new List<ModelDto>();
+        else
+        {
+            models = domain.Models;
+            models.Sort();
+        }
+        StateHasChanged();
+    }
+    private async Task GetLanguages()
+    {
+        var items = await languageService.GetLanguagesAsync();
+        if (items == null)
+            languages = new List<LanguageDto>();
+        else
+            languages = items.ToList();
+
+        if (languages.Count > 0)
+            languageId = languages[0].Id;
+    }
+
+    private async Task CreateModel()
+    {
+        if(string.IsNullOrEmpty(modelName))
+        {
+            ShowAlertWindow("Model name should not be null");
+            return;
+        }
+            
+
+        if (languages == null)
+        {
+            ShowAlertWindow("Please Select Model Language");    
+            return;
+        }
+            
+
+        var language = languages.Find(languageDto => languageDto.Id == languageId);
+        if (language == null)
+        {
+            ShowAlertWindow("Please Select Model Language");    
+            return;
+        }
+
+        ModelLanguageDto modelLanguage = new ModelLanguageDto(language.Id, language.Name);
+        
+        if(string.IsNullOrEmpty(modelType))
+        {
+            ShowAlertWindow("Please Select Model Type");    
+            return;
+        }
+        
+        NewModelDto model = new NewModelDto(modelName, modelTag, modelType, level, modelLanguage);
+
+        await domainService.CreateModelAsync(domainId, model);
+        await GetDomainModelsAsync();
+    }
+    private async Task DeleteModel(Guid domainId,Guid modelId)
+    {
+        await domainService.DeleteModelAsync(domainId,modelId);
+        await GetDomainModelsAsync();
+    }
+    private async Task UpdateModelLanguage(Guid modelId, Guid languageId){
+        await domainModelService.UpdateDomainModelLanguage(modelId,languageId);
+    }
+}

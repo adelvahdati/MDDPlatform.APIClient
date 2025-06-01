@@ -1,0 +1,75 @@
+@page "/CreatePhase/{ProcessId:guid}"
+@inject IProcessService _processService;
+<ProcessManagementMenu></ProcessManagementMenu>
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is2">Phase Title</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is10">
+            <TextEdit Placeholder="Enter the title of phase" @bind-Text="@title"></TextEdit>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldLabel></FieldLabel>
+        <Button class="btn btn-primary" Color="Color.Primary" @onclick="Create">Create Phase</Button>
+    </Field>
+</Fields>
+@if(phases == null)
+{
+    <p>Loading ...</p>
+}else
+{
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Title</TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var item in phases)
+            {
+                <TableRow>
+                    <TableRowCell>
+                        <a href="@string.Format(activity_page_url,ProcessId,item.Id)">@item.Title</a>                        
+                    </TableRowCell>
+                    <TableRowCell>
+                        <Button Color="Color.Danger" Clicked="@(()=>Delete(ProcessId,item.Id))">Delete</Button>
+                    </TableRowCell>
+                </TableRow>                
+            }
+        </TableBody>
+    </Table>
+}
+@code
+{
+    [Parameter]
+    public Guid ProcessId {get;set;}
+
+    private List<PhaseDto> phases = null;
+    private string title;
+    private List<string> activities = new();
+    private string activity_page_url = "/CreateActivity/{0}/{1}";
+    protected override async Task OnInitializedAsync()
+    {
+        await GetPhases();    
+    }
+    private async Task GetPhases(){
+        var result = await _processService.GetPhasesAsync(ProcessId);
+        phases = result == null ? new List<PhaseDto>() : result;
+        StateHasChanged();
+    }
+    private async Task Create()
+    {
+        if(!string.IsNullOrEmpty(title)){
+            await _processService.CreatePhaseAsync(ProcessId,title,activities);
+            await GetPhases();
+        }
+    }
+    private async Task Delete(Guid processId,Guid phaseId)
+    {
+        await _processService.DeletePhaseAsync(processId,phaseId);
+        await GetPhases();
+    }
+}

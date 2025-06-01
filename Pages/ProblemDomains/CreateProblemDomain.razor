@@ -1,0 +1,152 @@
+@page "/ProblemDomainManagement"
+@inject IProblemDomainService problemDomainService;
+<ProblemDomainManagementMenu/>
+<Fields>
+    <Field>
+        <FieldLabel>Title</FieldLabel>
+        <TextEdit Placeholder="Enter title" @bind-Text="@Title" />
+    </Field>
+    <Field>
+        <FieldLabel>Description</FieldLabel>
+        <TextEdit Placeholder="Enter description" @bind-Text="@Description" />
+    </Field>
+    <Field>
+        <FieldLabel>Create problem domain</FieldLabel>
+        <Button class="btn btn-primary" Color="Color.Primary" @onclick="Save">Create Problem Domain</Button>
+    </Field>
+</Fields>
+@if (problemDomains == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <Accordion>
+        @foreach (var item in problemDomains)
+        {
+            <Collapse Visible="@collapseSate[item.Id]">
+                <CollapseHeader>
+                    <Heading Size="HeadingSize.Is5">
+                        <Div Width="Width.Is100">
+                            <Div Flex="Flex.JustifyContent.Start">
+                                <Button Clicked="@(()=>collapseSate[item.Id] = !collapseSate[item.Id])">
+                                    @item.Title : @item.Description
+                                </Button>
+                            </Div>
+                            <Div Flex="Flex.JustifyContent.End">
+                                <Button Color="Color.Primary" Clicked="@(()=> ShowProblemDomainDecompositionWindow(item.Id,item.Title))" Margin="Margin.Is1">Decompose</Button>
+                                <Button Color="Color.Danger" Clicked="@(()=> DeleteProblemDomain(item.Id))" Margin="Margin.Is1">Delete</Button>
+                            </Div>
+                        </Div>
+                    </Heading>
+                </CollapseHeader>
+                <CollapseBody>
+                    <ListGroup Flush>
+                        @foreach (var subdomain in item.SubDomains)
+                        {
+                            <ListGroupItem>
+                                <Div Flex="Flex.JustifyContent.Between" Width="Width.Is100">
+                                    <a href="@(string.Format(domain_base_url,subdomain.Id,subdomain.Name))">
+                                        @(subdomain.Name)
+                                    </a>
+                                    <Button Color="Color.Danger" Clicked="@(()=> DeleteSubDomain(item.Id,subdomain.Id))">Delete</Button>                                    
+                                </Div>
+                            </ListGroupItem>
+                        }
+                    </ListGroup>
+                </CollapseBody>
+            </Collapse>
+        }
+    </Accordion>
+}
+<Modal @bind-Visible="@domainDecompositionWindowVisible">
+    <ModalContent Centered>
+        <ModalHeader>
+            <ModalTitle>Domain Decomposition : @selectedProblemDomainTitle</ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            <Field>
+                <FieldLabel>Name</FieldLabel>
+                <TextEdit Placeholder="Enter Sub-Domain..." @bind-Text="@subDomain" />
+            </Field>
+        </ModalBody>
+        <ModalFooter>
+            <Button Color="Color.Secondary" Clicked="@CloseDomainDecompositionWindow">Close</Button>
+            <Button Color="Color.Primary" Clicked="@DecomposeProblemDomain">Save Changes</Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
+@code
+{
+    private bool domainDecompositionWindowVisible;
+    private string subDomain;
+    private Guid selectedProblemDomainId;
+    private string selectedProblemDomainTitle;
+    private string domain_base_url ="/DomainManagement/{0}/{1}";
+    private Dictionary<Guid, bool> collapseSate;
+    private List<ProblemDomainDto> problemDomains;
+    private string Title;
+    private string Description;
+    protected override async Task OnInitializedAsync()
+    {
+        await GetProblemDomainsAsync();
+    }
+    private async Task GetProblemDomainsAsync(){
+        var items = await problemDomainService.GetProblemDomainsAsync();
+        if (items == null)
+            problemDomains = new();
+        else
+            problemDomains = items.ToList();
+        MakeCollapsibleItems();
+        StateHasChanged();
+    }
+    private void MakeCollapsibleItems()
+    {
+        collapseSate = new Dictionary<Guid, bool>();
+        foreach (var prob in problemDomains)
+        {
+            collapseSate.Add(prob.Id, false);
+        }
+    }
+
+    private async Task Save()
+    {
+        NewProblemDomainDto problemDomain = new(Title, Description);
+        await problemDomainService.CreateProblemDomainAsync(problemDomain);
+        Title = "";
+        Description = "";
+        await GetProblemDomainsAsync();
+    }
+
+    private void ShowProblemDomainDecompositionWindow(Guid problemDomainId,string title){
+        selectedProblemDomainId = problemDomainId;
+        selectedProblemDomainTitle = title;
+        domainDecompositionWindowVisible = true;
+    }
+    private void CloseDomainDecompositionWindow()
+    {
+        domainDecompositionWindowVisible = false;
+        subDomain = "";
+    }
+    private async Task DecomposeProblemDomain()
+    {
+        domainDecompositionWindowVisible = false;
+        if(!string.IsNullOrEmpty(subDomain))
+        {
+            await problemDomainService.DecomposeProblemDomainAsync(new NewSubDomainDto(subDomain,selectedProblemDomainId));
+            await GetProblemDomainsAsync();
+            collapseSate[selectedProblemDomainId] = true;
+        }
+        subDomain = string.Empty;    
+    }
+    private async Task DeleteProblemDomain(Guid id){
+        await problemDomainService.DeleteProblemDomainAsync(id);
+        await GetProblemDomainsAsync();
+    }
+    private async Task DeleteSubDomain(Guid problemDomainId , Guid domainId){
+        await problemDomainService.DeleteSubDomainAsync(problemDomainId,domainId);
+        await GetProblemDomainsAsync();
+    }
+}

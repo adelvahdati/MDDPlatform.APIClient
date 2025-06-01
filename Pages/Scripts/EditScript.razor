@@ -1,0 +1,155 @@
+@page "/EditScript/{ScriptId:guid}"
+@using System.Text
+@using System.Text.RegularExpressions
+@inject IScriptManagementService _scriptService;
+@inject IDomainModelService domainModelService
+<ProblemDomainManagementMenu/>
+@if(script!=null){
+    <Field Horizontal>
+        <FieldLabel>Instruction</FieldLabel>
+        <FieldBody>
+            <Autocomplete
+                        TItem="InstructionTemplate"
+                        TValue="string"
+                        Data="@instructionTemplates"                                                                
+                        TextField ="@((item)=> item.InstructionHint)"
+                        ValueField="@((item) => selectedText)"
+                        SelectedValueChanged="@((args)=>OnSelectedValueChanged(args))"
+                        Filter="AutocompleteFilter.StartsWith"
+                        CustomFilter="@((item,searchValue)=> FilterOption(item,searchValue))">
+                
+                <NotFoundContent> 
+                    Sorry... @context was not found! :( 
+                </NotFoundContent>
+            </Autocomplete>
+        </FieldBody>
+    </Field>
+    <Field Horizontal>
+        <FieldLabel>Title</FieldLabel>
+        <FieldBody>
+            <TextEdit @bind-Text="@script.Title"></TextEdit>
+        </FieldBody>
+    </Field>
+    <Field Horizontal>
+        <FieldLabel>Code</FieldLabel>
+        <FieldBody>
+            <MemoEdit Rows="12" @bind-Text="script_code">
+            </MemoEdit>
+        </FieldBody>
+    </Field>    
+    <Field Horizontal>
+        <FieldLabel></FieldLabel>
+        <FieldBody>
+            <Button class="btn btn-primary" Color="Color.Primary" @onclick="UpdateScript">Save Changes</Button>
+        </FieldBody>
+    </Field>
+}
+<Modal @bind-Visible="@Show_Error">
+    <ModalContent Size="ModalSize.ExtraLarge">
+        <ModalHeader>
+            <ModalTitle>Errors</ModalTitle>
+            <CloseButton/>
+        </ModalHeader>
+        <ModalBody>
+            @if(errors!=null){
+                @foreach (var error in errors)
+                {
+                    <li>@error</li>
+                }
+            }
+        </ModalBody>
+    </ModalContent>
+</Modal>
+
+
+@code{
+    [Parameter]
+    public Guid ScriptId {get;set;}
+    private string script_code {get;set;}
+    private ScriptDto? script;
+    private List<InstructionTemplate> instructionTemplates;
+    private string selectedText;
+    private List<string> errors = null;
+    private bool Show_Error = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        script = await _scriptService.GetScriptAsync(ScriptId);
+        if(script != null)
+        {
+            LoadScriptCode(script.Instructions);
+            await LoadAutoCimpletionInstruction(script.DomainModelId);
+            StateHasChanged();
+        }
+    }
+    private async Task LoadAutoCimpletionInstruction(Guid domainModelId){
+        instructionTemplates = new();
+        var model = await domainModelService.GetDomainModelElementsAsync(domainModelId);
+        if(model == null)
+            return;
+
+        foreach(var element in model.Elements)
+        {
+            instructionTemplates.AddAutoCompletionInstructions(element);
+        }
+    }
+    private void LoadScriptCode(List<InstructionDto> instructionDtos)
+    {
+        var builder = new StringBuilder();        
+        foreach(var instruction in instructionDtos)
+        {
+            builder.AppendLine(instruction.ToString());
+        }
+        script_code = builder.ToString();            
+    }
+    private bool FilterOption(InstructionTemplate instruction,string searchValue)
+    {
+        if(!string.IsNullOrEmpty(searchValue) && Regex.IsMatch(searchValue,instruction.InstructionExpression))
+        {
+            selectedText = Regex.Match(searchValue,instruction.InstructionExpression).Value;
+            return true;
+        }            
+        return instruction.FilterOption(searchValue);
+    }
+    private void OnSelectedValueChanged(string value)
+    {
+        if(!string.IsNullOrEmpty(value))
+        {
+            var builder = new StringBuilder(script_code);
+            builder.AppendLine(value);
+            script_code = builder.ToString();
+            selectedText ="";
+        }
+    }
+    private async Task UpdateScript()
+    {
+        var lines = script_code.Split("\n");
+        errors = new List<string>();
+        List<InstructionDto> instructionDtos = new();
+        foreach(var line in lines)
+        {
+            if(!string.IsNullOrEmpty(line.Trim()))
+            {
+                var instructionTemplate = instructionTemplates.FirstOrDefault(inst=>Regex.IsMatch(line,inst.InstructionExpression));
+
+                if(instructionTemplate == null)
+                    errors.Add(line);
+                else
+                {
+                    var instructionDto = instructionTemplate.ToInstruction(line);
+                    instructionDtos.Add(instructionDto);
+                }
+            }
+                
+        }
+        if(errors.Count == 0 && script!=null)
+        {
+            var newScript = new ScriptDto(script.Id,script.Title,instructionDtos,script.DomainModelId);
+            await _scriptService.UpdateScriptAsync(newScript);
+        }else
+        {
+            Show_Error = true;
+        }        
+
+    }
+}

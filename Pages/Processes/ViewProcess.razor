@@ -1,0 +1,81 @@
+@page "/ViewProcess/{ProcessId:guid}"
+@inject IProcessService _processService;
+@inject IProcessConfigurationService _processConfigurationService;
+<ProcessManagementMenu></ProcessManagementMenu>
+
+@if(process!=null)
+{
+    <Field Horizontal>
+        <FieldLabel></FieldLabel>
+        <Button Color="Color.Primary" Clicked="@(()=>Show_Creation_window())">Create a process configuration</Button>
+    </Field>
+    <TreeView Nodes="Items"
+                GetChildNodes="@(item=>item.Children)"
+                HasChildNodes="@(item=>item.Children?.Any()==true)">
+
+        <NodeContent>
+            <div style="margin-left: 5px;">
+                <Icon Name="IconName.ArrowRight"/>
+                @context.Text
+            </div>
+        </NodeContent>
+    </TreeView>
+
+    <Modal @bind-Visible="@CreationWindowVisibility">
+        <ModalContent Centered>
+            <ModalHeader>
+                <ModalTitle>New Process Configuration</ModalTitle>
+                <CloseButton />
+            </ModalHeader>
+            <ModalBody>
+                <Field>
+                    <FieldLabel>Process Configuration Title</FieldLabel>
+                    <TextEdit Placeholder="Enter name..." @bind-Text="@title" />
+                </Field>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="@CloseCreationWindow">Close</Button>
+                <Button Color="Color.Primary" Clicked="@CreateProcessConfiguartion">Create a process configuration</Button>
+            </ModalFooter>
+        </ModalContent>
+    </Modal>
+}
+
+@code
+{
+    [Parameter]
+    public Guid ProcessId {get;set;}
+    private ProcessDto? process = null;
+
+    private bool CreationWindowVisibility = false;
+    private string title="";
+
+    private List<Item> Items = new();
+    protected override async Task OnInitializedAsync()
+    {
+        process = await _processService.GetProcessAsync(ProcessId);
+        if(process!=null)
+            Items.Add(process.ToItem());
+        StateHasChanged();
+    }
+    private void Show_Creation_window()
+    {
+        CreationWindowVisibility = true;
+    }
+    private void CloseCreationWindow(){
+        title = "";
+        CreationWindowVisibility = false;
+    }
+    private async Task CreateProcessConfiguartion()
+    {
+        if(process!=null && !string.IsNullOrEmpty(title))
+        {
+            NewProcessConfigurationDto processConfiguration = new NewProcessConfigurationDto(ProcessId,title);
+            await _processConfigurationService.CreateProcessConfigurationAsync(processConfiguration);
+            title = "";
+            CreationWindowVisibility = false;
+        }
+    }
+
+
+}

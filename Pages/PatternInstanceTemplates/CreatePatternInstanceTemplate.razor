@@ -1,0 +1,77 @@
+@page "/PatternInstanceTemplate/{InstanceId:guid}"
+@inject IPatternService _patternService;
+@inject IPatternInstanceTemplateService _patternInstanceTemplateService;
+<PatternManagementMenu/>
+@if(patternInsatnce !=null)
+{
+    <Table>
+        <TableHeader>
+            <TableHeaderCell>Field</TableHeaderCell>
+            <TableHeaderCell>Value</TableHeaderCell>
+        </TableHeader>
+        <TableBody>
+            <TableRow>
+                <TableRowCell>Template Title</TableRowCell>
+                <TableRowCell><TextEdit @bind-Text="@TemplateTitle"></TextEdit></TableRowCell>
+            </TableRow>
+            <TableRow>
+                <TableRowCell>Template Name</TableRowCell>
+                <TableRowCell><TextEdit @bind-Text="@TemplateName"></TextEdit></TableRowCell>
+            </TableRow>
+            <TableRow>
+                <TableRowCell>Pattern</TableRowCell>
+                <TableRowCell>@patternInsatnce.PatternName</TableRowCell>
+            </TableRow>
+            @foreach (var fieldValue in patternInsatnce.FieldValues)
+            {
+                @if(!IsIOModel(@fieldValue.Name))
+                {
+                    <TableRow>
+                        <TableRowCell>@fieldValue.Name</TableRowCell>
+                        <TableRowCell>@fieldValue.Value</TableRowCell>
+                    </TableRow>            
+                }
+            }
+
+        </TableBody>
+    </Table>
+    <Field Horizontal>
+        <FieldLabel></FieldLabel>        
+        <Button class="btn btn-primary" Color="Color.Primary" @onclick="CreateTemplate">Create Template</Button>
+    </Field>
+}
+@code
+{
+    [Parameter]
+    public Guid InstanceId { get; set; }
+    private PatternInstanceDto? patternInsatnce;
+    private PatternDto? pattern;
+    private List<FieldDto> IOModelFields = new();
+    private string TemplateName;
+    private string TemplateTitle;
+    protected override async Task OnInitializedAsync()
+    {
+        patternInsatnce = await _patternService.GetPatternInstanceAsync(InstanceId);
+        if(patternInsatnce==null)
+            return;
+
+        pattern = await _patternService.GetPatternAsync(patternInsatnce.PatternId);
+        if(pattern == null)
+            return;
+
+        TemplateName = patternInsatnce.Name;
+        TemplateTitle = patternInsatnce.Title;
+        IOModelFields = pattern.Fields.Where(f=>f.Type == FieldType.InputModel || f.Type == FieldType.OutputModel).ToList();
+    }
+    private bool IsIOModel(string fieldName)
+    {
+        if(IOModelFields == null)
+            return false;
+        
+        return IOModelFields.Exists(f=>f.Name.ToLower() == fieldName.ToLower());
+    }
+    private async Task CreateTemplate()
+    {
+        await _patternInstanceTemplateService.CreatePatternInstanceTemplateAsync(InstanceId,TemplateTitle,TemplateName);
+    }
+}

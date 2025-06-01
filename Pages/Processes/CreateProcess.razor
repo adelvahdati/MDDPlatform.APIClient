@@ -1,0 +1,63 @@
+@page "/CreateProcess"
+@inject IProcessService _processService;
+<ProcessManagementMenu></ProcessManagementMenu>
+
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is2">Process Title</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is10">
+            <TextEdit Placeholder="Enter the title of process" @bind-Text="@title"></TextEdit>
+        </FieldBody>
+    </Field>
+</Fields>
+<Field Horizontal>
+    <FieldLabel></FieldLabel>
+    <Button class="btn btn-primary" Color="Color.Primary" @onclick="Create">Create Process</Button>
+</Field>
+@if(processes == null)
+{
+    <p>Loading ...</p>
+}else
+{
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Title</TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var item in processes)
+            {
+                <TableRow>
+                    <TableRowCell>
+                        <a href="@string.Format(phase_page_url,item.Id)">@item.Title</a>                        
+                    </TableRowCell>
+                </TableRow>                
+            }
+        </TableBody>
+    </Table>
+}
+
+@code
+{
+    private List<ProcessDto> processes = null;
+    private List<string> Phases = new();
+    private string title;
+    private string phase_page_url = "/CreatePhase/{0}";
+    protected override async Task OnInitializedAsync()
+    {
+        await ListProcess();    
+    }
+    private async Task ListProcess(){
+        processes = await _processService.ListProcessAsync();        
+        StateHasChanged();
+    }
+    private async Task Create()
+    {
+        if(!string.IsNullOrEmpty(title))
+        {
+            await _processService.CreateProcessAsync(title,Phases);
+            await ListProcess();
+        }
+    }
+}

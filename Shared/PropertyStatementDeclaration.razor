@@ -1,0 +1,5 @@
+@foreach (var attribute in Attributes)
+{
+    <DynamicComponent Type="@AttributeStatementDeclaration.GetComponentType()" Parameters="@AttributeStatementDeclaration.GetParameters(attribute)" />
+}
+@ToText()

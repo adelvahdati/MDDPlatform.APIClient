@@ -1,0 +1,318 @@
+@page "/CreatePipeline"
+@inject IProblemDomainService _problemDomainService;
+@inject IPatternService _patternService;
+@inject IPipelineService _pipelineService;
+@inject IDomainModelService _domainModelService;
+@inject IDomainService _domainService;
+
+<PipelineManagementMenu/>
+
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is4">Problem Domains</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is8">
+            @if (problemDomainOptions != null)
+            {
+                <Select TValue="Guid" SelectedValueChanged="@((args) => SelectProblemDomain(args))">
+                    <SelectItem Value="@(Guid.Empty)">-- Select Problem Domain --</SelectItem>
+                    @foreach (var item in problemDomainOptions)
+                    {
+                        <SelectItem Value="@item.Id" TValue="Guid">@item.Title</SelectItem>
+                    }
+                </Select>
+            }
+        </FieldBody>
+    </Field>
+</Fields>
+
+<Tabs SelectedTab="@selectedTab" SelectedTabChanged="@OnTabChange">
+    <Items>
+        <Tab Name="pipeline">Pipeline</Tab>
+        <Tab Name="automated">Automated Stage</Tab>
+        <Tab Name="manual">Manual Stage</Tab>
+    </Items>
+    <Content>
+        <TabPanel Name="pipeline">
+            <Fields>
+                <Field Horizontal>
+                    <FieldLabel ColumnSize="ColumnSize.Is4">Pipeline Title</FieldLabel>
+                    <FieldBody>
+                        <TextEdit Placeholder="Enter Pipeline Title" @bind-Text="@pipeline.Title"></TextEdit>
+                    </FieldBody>
+                </Field>
+            </Fields>
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHeaderCell>Stage Title</TableHeaderCell>
+                        <TableHeaderCell>Stage Type</TableHeaderCell>
+                        <TableHeaderCell></TableHeaderCell>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    @foreach (var item in pipeline.Stages)
+                    {
+                        <TableRow>
+                            <TableRowCell>
+                                <TextEdit Size="Size.Medium" Placeholder="Title" @bind-Text="@item.Title"></TextEdit>
+                            </TableRowCell>
+                            <TableRowCell>@item.Type</TableRowCell>
+                            <TableRowCell>
+                                <Button Color="Color.Danger" Clicked="@(()=>DeleteStage(item))">Delete Stage</Button>   
+                            </TableRowCell>
+                        </TableRow>        
+                    }
+                </TableBody>
+            </Table>
+            <Field Horizontal>
+                <FieldLabel></FieldLabel>        
+                <Button class="btn btn-primary" Color="Color.Primary" @onclick="CreateNewPipeline">Create Pipeline</Button>
+            </Field>
+        </TabPanel>
+        <TabPanel Name="automated">
+            @if(patternInsatnces !=null)
+            {
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHeaderCell>Pattern</TableHeaderCell>
+                            <TableHeaderCell>Instance Title</TableHeaderCell>
+                            <TableHeaderCell></TableHeaderCell>
+                            <TableHeaderCell></TableHeaderCell>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        @foreach (var item in patternInsatnces)
+                        {
+                            <TableRow>
+                                <TableRowCell>@item.Title</TableRowCell>
+                                <TableRowCell>@item.PatternName</TableRowCell>
+                                <TableRowCell>
+                                    <Button Color="Color.Primary" Clicked="@(()=>AddAutomatedStage(item))">Add</Button>   
+                                </TableRowCell>
+                                <TableRowCell>
+                                    <Button Color="Color.Secondary" Clicked="@(()=>ViewPatternInstance(item.Id))">View</Button>   
+                                </TableRowCell>
+                            </TableRow>        
+                        }
+                    </TableBody>
+                </Table>
+            }            
+        </TabPanel>
+        <TabPanel Name="manual">
+            <Fields>
+                <Field Horizontal>
+                    <FieldLabel ColumnSize="ColumnSize.Is4">Stage Title</FieldLabel>
+                    <FieldBody>
+                        <TextEdit Placeholder="Stage Title" @bind-Text="@manualStageTitle"></TextEdit>
+                    </FieldBody>
+                </Field>
+            </Fields>
+            <Field Horizontal>
+                <FieldLabel></FieldLabel>        
+                <Button class="btn btn-primary" Color="Color.Primary" @onclick="AddManualStage">Add</Button>
+            </Field>
+        </TabPanel>
+    </Content>
+</Tabs>
+<Modal @bind-Visible="@showPatternInstanceWindow">
+    <ModalContent Size="ModalSize.ExtraLarge">
+        <ModalHeader>
+            <ModalTitle>New Instance</ModalTitle>
+        </ModalHeader>
+        <ModalBody>
+        @if(patternInsatnce!=null){            
+            <Table>
+                <TableHeader>
+                    <TableHeaderCell>Field</TableHeaderCell>
+                    <TableHeaderCell>Value</TableHeaderCell>
+                </TableHeader>
+                <TableBody>
+                    <TableRow>
+                        <TableRowCell>Pattern</TableRowCell>
+                        <TableRowCell>@patternInsatnce.PatternName</TableRowCell>
+                    </TableRow>
+                    <TableRow>
+                        <TableRowCell>Title</TableRowCell>
+                        <TableRowCell>@patternInsatnce.Title</TableRowCell>
+                    </TableRow>
+                    <TableRow>
+                        <TableRowCell>Nme</TableRowCell>
+                        <TableRowCell>@patternInsatnce.Name</TableRowCell>
+                    </TableRow>
+                    @foreach (var fieldValue in patternInsatnce.FieldValues)
+                    {
+                        <TableRow>
+                            <TableRowCell>@fieldValue.Name</TableRowCell>
+                            <TableRowCell>
+                                @if(!IsIOModel(@fieldValue.Name))
+                                    @fieldValue.Value
+                                else
+                                {
+                                    <a href="@GetPageUrl(fieldValue.Name)">
+                                        @GetModelInfo(fieldValue.Name);
+                                    </a>
+                                }
+                            </TableRowCell>
+                        </TableRow>            
+                    }
+                </TableBody>
+            </Table>
+        }
+            <Field Horizontal>
+                <FieldLabel></FieldLabel>        
+                <Button class="btn btn-primary" Color="Color.Primary" @onclick="CloseWindow">Close</Button>
+            </Field>
+
+        </ModalBody>
+    </ModalContent>
+</Modal>
+@code
+{
+    private List<ProblemDomainDto>? problemDomainOptions = null;
+    private List<PatternInstanceDto>? patternInsatnces = null;
+    private Guid SelectedProblemDomainId;
+    private NewPipelineDto pipeline=new();
+    private string selectedTab = "pipeline";
+    private string manualStageTitle="";
+    private PatternDto? pattern=null;
+    private PatternInstanceDto? patternInsatnce;
+    private bool showPatternInstanceWindow = false;
+    private Dictionary<Guid, PatternInstanceDto> PatternInstanceDictionary =new();
+    private List<FieldDto> IOModelFields = new();
+    private Dictionary<string,ModelDto> IOModels = new();
+    private string base_url = "/DomainSpecificModel/{0}";
+    private string builtin_model_url = "/BuiltinModel/{0}";
+
+    protected override async Task OnInitializedAsync()
+    {        
+        await GetProblemDomains();
+    }
+    private async Task SelectProblemDomain(Guid problemDomainId){
+        SelectedProblemDomainId = problemDomainId;
+       patternInsatnces = await _patternService.ListProblemDomainPatternInstancesAsync(SelectedProblemDomainId);
+       pipeline.ClearStages(problemDomainId);
+    }
+    private async Task GetProblemDomains()
+    {
+        var items = await _problemDomainService.GetProblemDomainsAsync();
+        if (items == null)
+        {
+            problemDomainOptions = new();
+            SelectedProblemDomainId = Guid.Empty;
+        }
+        else
+        {
+            problemDomainOptions = items.ToList();
+            SelectedProblemDomainId = problemDomainOptions[0].Id;
+        }
+    }
+    private void AddAutomatedStage(PatternInstanceDto patternInstance)
+    {
+        pipeline.AddAutomatedStage(patternInstance.Title,patternInstance.Id);
+    }
+
+    private void OnTabChange(string name){
+        selectedTab = name;
+    }
+    private void DeleteStage(StageDto stage)
+    {
+        pipeline.DeleteStage(stage);
+    }
+    private async Task CreateNewPipeline()
+    {
+        await _pipelineService.CreatePipelineAsync(pipeline);
+    }
+    private void AddManualStage(){
+        pipeline.AddManualStage(manualStageTitle);
+    }
+    private async Task ViewPatternInstance(Guid instanceId)
+    {
+        if(PatternInstanceDictionary.ContainsKey(instanceId))
+        {
+            patternInsatnce = PatternInstanceDictionary[instanceId];
+        }else
+        {
+            patternInsatnce = await _patternService.GetPatternInstanceAsync(instanceId);            
+            if(patternInsatnce!=null)
+                PatternInstanceDictionary.Add(instanceId, patternInsatnce);
+        }
+        if(patternInsatnce!=null){
+            await FetchIOModels(patternInsatnce);
+            showPatternInstanceWindow = true;
+        }
+            
+    }
+    private async Task FetchIOModels(PatternInstanceDto instance)
+    {
+        IOModels.Clear();
+        IOModelFields.Clear();
+        pattern = await _patternService.GetPatternAsync(instance.PatternId);
+        if(pattern == null)
+            return;
+
+        IOModelFields = pattern.Fields.Where(f=>f.Type == FieldType.InputModel || f.Type == FieldType.OutputModel).ToList();
+        foreach(var field in IOModelFields)
+        {
+            var fieldValue = instance.FieldValues.Where(f=>f.Name.ToLower() == field.Name.ToLower()).FirstOrDefault();
+            if(fieldValue !=null)
+            {
+                Guid modelId;
+                var result = Guid.TryParse(fieldValue.Value,out modelId);
+
+                var domainModel = result == true ? 
+                                    await _domainModelService.GetDomainModelById(modelId) :
+                                    null;
+                
+                var modelDto = domainModel != null ?
+                                    await _domainService.FindModelByIdAysnc(domainModel.DomainId,domainModel.Id) :
+                                    null;
+
+                if(modelDto!=null)
+                    IOModels.Add(field.Name,modelDto);            
+            }
+        }
+    }
+    private string GetPageUrl(string fieldName)
+    {
+        if(patternInsatnce == null)        
+            return "";
+        if(!IOModels.ContainsKey(fieldName))
+            return "";
+
+        ModelDto model = IOModels[fieldName];
+        if(model.Language.IsBuiltin)
+            return string.Format(builtin_model_url,model.Id);
+        else
+            return string.Format(base_url,model.Id);                                            
+    }
+    private void CloseWindow(){
+        showPatternInstanceWindow = false;
+        patternInsatnce = null;
+    }
+    private string GetModelInfo(string fieldName)
+    {
+        if(patternInsatnce == null)        
+            return "[NULL]";
+        if(!IOModels.ContainsKey(fieldName))
+        {
+            var fieldvalue = patternInsatnce.FieldValues.Where(f=>f.Name.ToLower() == fieldName.ToLower()).FirstOrDefault();
+            if(fieldvalue == null)
+                return "[NULL]";
+            
+            return fieldvalue.Value;
+        }
+        
+        ModelDto model = IOModels[fieldName];
+        return $"Name : {model.Name} ; Type : {model.Type} ; Tag : {model.Tag}";
+    }
+
+    private bool IsIOModel(string fieldName)
+    {
+        if(IOModelFields == null)
+            return false;
+        
+        return IOModelFields.Exists(f=>f.Name.ToLower() == fieldName.ToLower());
+    }
+
+}

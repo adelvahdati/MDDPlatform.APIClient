@@ -1,0 +1,24 @@
+        @foreach (var usingStatement in UsingStatements)
+        {
+            <DynamicComponent Type="@UsingStatementDeclaration.GetComponentType()" Parameters="@UsingStatementDeclaration.GetParameters(usingStatement)"/>
+        }
+        @if(!string.IsNullOrEmpty(Namespace))
+        {
+            <DynamicComponent Type="@NamespaceDeclaration.GetComponentType()" Parameters = "@NamespaceDeclaration.GetParameters(Namespace)"/>
+        }
+                    
+        @foreach (var attribute in Attributes)
+        {
+            <DynamicComponent Type="@AttributeStatementDeclaration.GetComponentType()" Parameters="@AttributeStatementDeclaration.GetParameters(attribute)" />
+        }
+            @StartClassDeclaration()
+        @foreach (var property in Properties)
+        {
+            
+            <DynamicComponent Type="@PropertyStatementDeclaration.GetComponentType()" Parameters="@PropertyStatementDeclaration.GetParameters(property)" />
+        }
+        @foreach (var operation in Operations)
+        {
+            <DynamicComponent Type = "@OperationDeclaration.GetComponentType()" Parameters="@OperationDeclaration.GetParameteres(operation)"/>
+        }
+            @EndClassDeclaration()

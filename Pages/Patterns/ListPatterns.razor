@@ -1,0 +1,74 @@
+@page "/ListPatterns"
+@inject IPatternService _patternService;
+
+<PageTitle>Model Transformation Patterns</PageTitle>
+<PatternManagementMenu/>
+
+@if(patterns == null){
+    <p><em>Loading...</em></p>
+}
+else{
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Name</TableHeaderCell>
+                <TableHeaderCell>Category</TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+                @* <TableHeaderCell></TableHeaderCell> *@
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var pattern in patterns)
+            {
+                <TableRow>
+                    <TableRowCell>
+                        <Tooltip Text="@pattern.Description">
+                            <a href="@(string.Format(pattern_instance_url_page,pattern.Id))">
+                                @pattern.Name
+                            </a>
+                        </Tooltip>
+                    </TableRowCell>
+                    <TableRowCell>@pattern.Category</TableRowCell>
+                    <TableRowCell>
+                        <a href="@(string.Format(list_pattern_instance_templates_page,pattern.Id))">
+                            Pattern Instance Templates
+                        </a>
+                    </TableRowCell>
+                    @* <TableRowCell><Button Color="Color.Danger" Clicked="@(e=> DeletePattern(pattern.Id))" Active=false>Delete</Button></TableRowCell> *@
+                </TableRow>
+
+            }
+        </TableBody>
+    </Table>
+}
+
+@code
+{
+    private List<PatternDto>? patterns = null;
+    private string pattern_instance_url_page = "/Pattern/{0}/Intstances";
+    private string list_pattern_instance_templates_page = "/ListPatternInstanceTemplate/{0}";
+    protected override async Task OnInitializedAsync()
+    {
+        await GetPatterns();        
+    }
+    private async Task GetPatterns()
+    {
+        var items  = await _patternService.ListPatternsAsync();
+        
+        if(items == null)
+            patterns = new List<PatternDto>();
+        else
+        {
+            items.Sort();
+            patterns = items;
+        }
+    }
+    private Task DeletePattern(Guid patternId)
+    {
+        //await _patternService.DeletePatternAsync(languageId);
+        @* await GetPatterns();
+        StateHasChanged();         *@
+        return Task.CompletedTask;
+    }
+
+}

@@ -1,0 +1,46 @@
+@page "/Seed"
+@inject IPatternService _patternService;
+@inject ILanguageService _languageService;
+@inject IPackageService _packageService;
+
+<Table>
+    <TableHeader>
+        <TableHeaderCell>Item</TableHeaderCell>
+        <TableHeaderCell></TableHeaderCell>
+    </TableHeader>
+    <TableBody>
+        <TableRow>
+            <TableRowCell>Import pre-defined concepts & languages</TableRowCell>
+            <TableRowCell>
+                <Button class="btn btn-primary" Color="Color.Primary" @onclick="ImportDSLsAsync">Reuse</Button>
+            </TableRowCell>
+        </TableRow>
+        <TableRow>
+            <TableRowCell>Import pre-defined model transformation process, patterns & pattern instance templates</TableRowCell>
+            <TableRowCell>
+                <Button class="btn btn-primary" Color="Color.Primary" @onclick="ImportPatternsAsync">Reuse</Button>
+            </TableRowCell>
+        </TableRow>
+        <TableRow>
+            <TableRowCell>Import pre-defined package of model templates</TableRowCell>
+            <TableRowCell>
+                <Button class="btn btn-primary" Color="Color.Primary" @onclick="ImportPackageAsync">Reuse</Button>
+            </TableRowCell>
+        </TableRow>
+    </TableBody>
+</Table>
+
+@code
+{
+    private async Task ImportDSLsAsync()
+    {
+        await _languageService.ImportDSLsAsync();
+    }
+    private async Task ImportPatternsAsync()
+    {
+        await _patternService.ImportPatternsAsync();
+    }
+    private async Task ImportPackageAsync(){
+        await _packageService.ImportPackagesAsync();
+    }
+}

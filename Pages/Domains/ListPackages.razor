@@ -1,0 +1,46 @@
+@page "/ListPackages"
+@inject IPackageService packageService;
+@if(packages!=null)
+{
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Title</TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var package in packages)
+            {
+                <TableRow>
+                    <TableRowCell>
+                        <a href="@(string.Format(view_package_url,package.Id))">
+                            @package.Title
+                        </a>
+                    </TableRowCell>
+                    <TableRowCell>
+                        <Button Color="Color.Danger" Clicked="@(()=>DeletePackage(package.Id))">Delete</Button>
+                    </TableRowCell>
+                </TableRow>
+            }
+        </TableBody>
+    </Table>
+
+}
+@code
+{
+    private List<PackageDto>? packages =null;
+        private string view_package_url = "/ViewPackage/{0}";
+    protected override async Task OnInitializedAsync()
+    {
+        packages = await packageService.ListAsync();
+        StateHasChanged();
+    }
+    private async Task DeletePackage(Guid packageId)
+    {
+        await packageService.DeletePackageAsync(packageId);
+        packages = await packageService.ListAsync();
+        StateHasChanged();
+
+    }
+}

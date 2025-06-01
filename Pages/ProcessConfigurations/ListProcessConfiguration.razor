@@ -1,0 +1,61 @@
+@page "/ListProcessConfiguration/{ProcessId:guid}"
+@inject IProcessConfigurationService _processConfigurationService;
+<ProcessManagementMenu></ProcessManagementMenu>
+
+@if(processConfigurations!=null){
+<Table>
+    <TableHeader>
+        <TableHeaderCell>Configuaration Title</TableHeaderCell>
+        <TableHeaderCell></TableHeaderCell>        
+        <TableHeaderCell></TableHeaderCell>        
+        <TableHeaderCell></TableHeaderCell>        
+    </TableHeader>
+    <TableBody>
+        @foreach (var processConfig in processConfigurations)
+        {
+            <TableRow>
+                <TableRowCell>@processConfig.Title</TableRowCell>
+                <TableRowCell>
+                    <Button Color="Color.Info">
+                        <a href="@string.Format("/ViewProcessConfiguration/{0}",processConfig.Id)" style="color: white;">View</a>                        
+                    </Button>                    
+                </TableRowCell>
+                <TableRowCell>
+                    <Button Color="Color.Info">
+                        <a href="@string.Format("/ConfigProcess/{0}",processConfig.Id)" style="color: white;">Config tasks</a>                        
+                    </Button>                    
+                </TableRowCell>
+                <TableRowCell>
+                    <Button Color="Color.Info">
+                        <a href="@string.Format("/ExecuteProcess/{0}",processConfig.Id)" style="color: white;">Execute Process</a>                        
+                    </Button>                    
+                </TableRowCell>
+                <TableRowCell>
+                    <Tooltip Text="Update Configuration Based on process changes">
+                        <Button Color="Color.Info" Clicked="@(()=>UpdateProcessConfiguration(processConfig.Id))">
+                            Update
+                        </Button>                    
+                    </Tooltip>
+                </TableRowCell>
+            </TableRow>            
+        }
+    </TableBody>
+</Table>
+}
+@code
+{
+    [Parameter]
+    public Guid ProcessId {get;set;}
+
+    private List<ProcessConfigurationDto>? processConfigurations = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        processConfigurations = await _processConfigurationService.GetProcessConfigurationsAsync(ProcessId);
+        StateHasChanged();
+    }
+
+    private async Task UpdateProcessConfiguration(Guid processConfigurationId){
+        await _processConfigurationService.UpdateProcessConfigurationAsync(processConfigurationId);
+    }
+}

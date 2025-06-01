@@ -1,0 +1,114 @@
+@page "/TextEditor/{DomainModelId:guid}"
+@using System.Text
+@using System.Text.RegularExpressions
+@inject IDomainModelService domainModelService
+@inject IScriptManagementService _scriptService;
+<ProblemDomainManagementMenu/>
+@if(model==null){
+    <p>Loading ...</p>
+}else
+{
+    <Field Horizontal>
+        <FieldLabel>Instruction</FieldLabel>
+        <FieldBody>
+            <Autocomplete
+                        TItem="InstructionTemplate"
+                        TValue="string"
+                        Data="@instructionTemplates"                                                                
+                        TextField ="@((item)=> item.InstructionHint)"
+                        ValueField="@((item) => selectedText)"
+                        SelectedValueChanged="@((args)=>OnSelectedValueChanged(args))"
+                        Filter="AutocompleteFilter.StartsWith"                                
+                        CustomFilter="@((item,searchValue)=> FilterOption(item,searchValue))">
+                
+                <NotFoundContent> 
+                    Sorry... @context was not found! :( 
+                </NotFoundContent>
+            </Autocomplete>
+        </FieldBody>
+    </Field>
+    <Field Horizontal>
+        <FieldLabel>Title</FieldLabel>
+        <FieldBody>
+            <TextEdit @bind-Text="@title"></TextEdit>
+        </FieldBody>
+    </Field>
+    <Field Horizontal>
+        <FieldLabel>Code</FieldLabel>
+        <FieldBody>
+            <MemoEdit Rows="12" @bind-Text="script_code" Disabled>
+            </MemoEdit>
+        </FieldBody>
+    </Field>    
+    <Field Horizontal>
+        <FieldLabel></FieldLabel>
+        <FieldBody>
+            <Button class="btn btn-primary" Color="Color.Primary" @onclick="CreateScript">Save</Button>
+        </FieldBody>
+    </Field>
+}
+
+
+@code {
+    [Parameter]
+    public Guid DomainModelId {get;set;}
+    private DomainModelElementsDto? model = null;
+    private List<InstructionTemplate> instructionTemplates;
+    private List<string> lineOfCodes;
+    private string selectedText;
+    private string title;
+    private string script_code;
+    private StringBuilder builder;
+
+    protected override async Task OnInitializedAsync()
+    {
+        script_code = "";
+        lineOfCodes = new();
+        builder = new();
+        instructionTemplates = new();
+        model = await domainModelService.GetDomainModelElementsAsync(DomainModelId);
+        if(model!=null)
+        {
+            foreach(var element in model.Elements)
+            {
+                instructionTemplates.AddAutoCompletionInstructions(element);
+            }
+            StateHasChanged();
+        }
+    }
+    private bool FilterOption(InstructionTemplate instruction,string searchValue)
+    {
+        if(!string.IsNullOrEmpty(searchValue) && Regex.IsMatch(searchValue,instruction.InstructionExpression))
+        {
+            selectedText = Regex.Match(searchValue,instruction.InstructionExpression).Value;
+            return true;
+        }            
+        return instruction.FilterOption(searchValue);
+    }
+    private void OnSelectedValueChanged(string value)
+    {
+        if(!string.IsNullOrEmpty(value))
+        {
+            builder.AppendLine(value);
+            lineOfCodes.Add(value.Trim());
+            script_code = builder.ToString();
+            selectedText ="";
+        }
+    }
+
+    private async Task CreateScript()
+    {
+        List<InstructionDto> instructionDtos = new();
+        foreach(var line in lineOfCodes)
+        {
+            var instructionTemplate = instructionTemplates.Where(item=>Regex.IsMatch(line,item.InstructionExpression)).FirstOrDefault();
+            if(instructionTemplate!=null)
+            {
+                var instructionDto = instructionTemplate.ToInstruction(line);
+                instructionDtos.Add(instructionDto);
+            }
+        }
+        var newScript = new NewScriptDto(title,instructionDtos,DomainModelId);
+        await _scriptService.CreateScriptAsync(newScript);
+    }
+}

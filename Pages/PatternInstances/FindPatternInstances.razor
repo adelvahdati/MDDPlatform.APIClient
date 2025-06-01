@@ -1,0 +1,247 @@
+@page "/FindPatternInstances"
+@inject IProblemDomainService _problemDomainService;
+@inject ILanguageService languageService;
+@inject IPatternService patternService;
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is2">Problem Domains</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is10">
+                <Select TValue="Guid" SelectedValueChanged="@((args) => SelectProblemDomain(args))">
+                    <SelectItem Value="@(Guid.Empty)">-- Select Problem Domain --</SelectItem>
+                    @if (problemDomainOptions != null)
+                    {
+                        @foreach (var item in problemDomainOptions)
+                        {
+                            <SelectItem Value="@item.Id" TValue="Guid">@item.Title</SelectItem>
+                        }
+                    }
+                </Select>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is2">Input Model Type</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is10">
+            <Select TValue="string" SelectedValueChanged="@((args) => SelectInputModelType(args))">
+                <SelectItem TValue="string" Value="@(string.Empty)">Select Abstraction Level</SelectItem>
+                <SelectItem TValue="string" Value="@("CIM")">CIM</SelectItem>
+                <SelectItem TValue="string" Value="@("PIM")">PIM</SelectItem>
+                <SelectItem TValue="string" Value="@("PSM")">PSM</SelectItem>
+                <SelectItem TValue="string" Value="@("Code")">Code</SelectItem>
+            </Select>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is2">Input Model Language</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is10">
+            <Select TValue="string" SelectedValueChanged="@((args) => SelectInputModelLanguage(args))">
+                <SelectItem TValue="string" Value="@(string.Empty)">Select Model Language</SelectItem>
+                @if (languages != null)
+                {
+                    @foreach (var item in languages)
+                    {
+                        <SelectItem Value="@item.Id.ToString()" TValue="string">@item.Name - @item.Version</SelectItem>
+                    }
+                }
+            </Select>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is2">Output Model Type</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is10">
+            <Select TValue="string" SelectedValueChanged="@((args) => SelectOutputModelType(args))">
+                <SelectItem TValue="string" Value="@(string.Empty)">Select Abstraction Level</SelectItem>
+                <SelectItem TValue="string" Value="@("CIM")">CIM</SelectItem>
+                <SelectItem TValue="string" Value="@("PIM")">PIM</SelectItem>
+                <SelectItem TValue="string" Value="@("PSM")">PSM</SelectItem>
+                <SelectItem TValue="string" Value="@("Code")">Code</SelectItem>
+            </Select>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is2">Output Model Language</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is10">
+            <Select TValue="string" SelectedValueChanged="@((args) => SelectOutputModelLanguage(args))">
+                <SelectItem TValue="string" Value="@(string.Empty)">Select Model Language</SelectItem>
+                @if (languages != null)
+                {
+                    @foreach (var item in languages)
+                    {
+                        <SelectItem Value="@item.Id.ToString()" TValue="string">@item.Name - @item.Version</SelectItem>
+                    }
+                }
+            </Select>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldBody>
+            <Button class="btn btn-primary" Color="Color.Primary" @onclick="FindPatternInstancesAsync">Search</Button>
+        </FieldBody>
+    </Field>
+</Fields>
+@if(patternInstances!=null)
+{
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Title</TableHeaderCell>
+                <TableHeaderCell>Name</TableHeaderCell>
+                <TableHeaderCell>Category</TableHeaderCell>
+                <TableHeaderCell>Input Models</TableHeaderCell>
+                <TableHeaderCell>Output Models</TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var instance in patternInstances)
+            {
+                <TableRow>
+                    <TableRowCell>
+                        <a href="@(string.Format(view_pattern_instance_page_url,instance.Id))">
+                            @instance.PatternInstanceTitle
+                        </a>
+                    </TableRowCell>
+                    <TableRowCell>@instance.PatternName</TableRowCell>
+                    <TableRowCell>@instance.PatternCategory</TableRowCell>
+                    <TableRowCell>
+                        @foreach (var item in instance.InputModels)
+                        {
+                            if(item.IsBuiltin)
+                            {
+                                <a href="@(string.Format(builtin_model_url,item.Id))">
+                                    @item.ToString()
+                                </a>
+                            }else
+                            {
+                                <a href="@(string.Format(base_url,item.Id))">
+                                    @item.ToString()
+                                </a>
+                            }
+                        }
+                    </TableRowCell>
+                    <TableRowCell>
+                        @foreach (var item in instance.OutputModels)
+                        {
+                            if(item.IsBuiltin)
+                            {
+                                <a href="@(string.Format(builtin_model_url,item.Id))">
+                                    @item.ToString()
+                                </a>
+                            }else
+                            {
+                                <a href="@(string.Format(base_url,item.Id))">
+                                    @item.ToString()
+                                </a>
+                            }
+                        }
+                    </TableRowCell>
+                </TableRow>
+            }
+        </TableBody>
+    </Table>
+}
+
+@code
+{
+    private List<ProblemDomainDto>? problemDomainOptions = null;
+    private Guid SelectedProblemDomainId;
+    private Guid SelectedLanguageId;
+    private PatternInstanceFilterDto filter;
+    private List<LanguageDto>? languages = null;
+    private List<PatternInstanceInfoDto>? patternInstances = null;
+
+    private string base_url = "/DomainSpecificModel/{0}";
+    private string builtin_model_url = "/BuiltinModel/{0}";
+    private string view_pattern_instance_page_url = "/ViewPatternInstance/{0}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        filter = new();
+        await GetLanguages();
+        await GetProblemDomainsAsync();
+        StateHasChanged();
+    }
+    private async Task GetProblemDomainsAsync()
+    {
+        var items = await _problemDomainService.GetProblemDomainsAsync();
+        if (items == null)
+            problemDomainOptions = new();
+        else
+            problemDomainOptions = items.ToList();
+    }
+    private async Task GetLanguages()
+    {
+        var items = await languageService.GetLanguagesAsync();
+        if (items == null)
+            languages = new List<LanguageDto>();
+        else
+            languages = items.ToList();
+    }
+    private void SelectProblemDomain(Guid problemDomainId)
+    {
+        SelectedProblemDomainId = problemDomainId;
+        if(problemDomainId!=Guid.Empty)
+            filter.SetProblemDomain(problemDomainId);
+        else
+            filter.ResetProblemDomain();
+        
+        StateHasChanged();
+    }
+    private void SelectInputModelLanguage(string languageId)
+    {
+        if(string.IsNullOrEmpty(languageId))
+            filter.ResetInputMetaModel();
+        else
+        {
+            Guid id;
+            var result = Guid.TryParse(languageId,out id);
+            if(result)
+                filter.SetInputMetaModel(id);
+            else
+                filter.ResetInputMetaModel();                        
+        }            
+    }
+    private void SelectOutputModelLanguage(string languageId)
+    {
+        if(string.IsNullOrEmpty(languageId))
+            filter.ResetOutputMetaModel();
+        else
+        {
+            Guid id;
+            var result = Guid.TryParse(languageId,out id);
+            if(result)
+                filter.SetOutputMetaModel(id);
+            else
+                filter.ResetOutputMetaModel();                        
+        }            
+    }
+
+    private void SelectInputModelType(string type){
+        if(string.IsNullOrEmpty(type))
+            filter.ResetInputModelType();
+        else
+            filter.SetInputModelType(type);
+    }
+
+    private void SelectOutputModelType(string type){
+        if(string.IsNullOrEmpty(type))
+            filter.ResetOutputModelType();
+        else
+            filter.SetOutputModelType(type);
+    }
+
+
+    private async Task FindPatternInstancesAsync(){
+       patternInstances =  await patternService.FindPatternInstancesAsync(filter);
+    }
+
+}
+

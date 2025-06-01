@@ -1,0 +1,60 @@
+@page "/ListLanguages"
+@inject ILanguageService languageService
+
+<PageTitle>List of Concepts</PageTitle>
+
+<DSLManagementMenu />
+
+<p>This component shows the languages defined by user</p>
+
+@if (languages == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Language Id</TableHeaderCell>
+                <TableHeaderCell>Name</TableHeaderCell>
+                <TableHeaderCell>Version</TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var language in languages)
+            {
+                <TableRow>
+                    <TableRowCell>@language.Id</TableRowCell>
+                    <TableRowCell>@language.Name</TableRowCell>
+                    <TableRowCell>@language.Version</TableRowCell>
+                    <TableRowCell><Button Color="Color.Danger" Clicked="@(e=> DeleteLanguage(language.Id))">Delete</Button></TableRowCell>
+                </TableRow>
+
+            }
+        </TableBody>
+    </Table>
+}
+
+@code {
+    private List<LanguageDto>? languages = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetLanguages();        
+    }
+    private async Task DeleteLanguage(Guid languageId)
+    {
+        await languageService.DeleteLanguageAsync(languageId);
+        await GetLanguages();
+        StateHasChanged();        
+    }
+    private async Task  GetLanguages(){
+        var items = await languageService.GetLanguagesAsync();
+        if(items == null)
+            languages = new List<LanguageDto>();
+        else
+            languages = items.ToList();
+    }
+}

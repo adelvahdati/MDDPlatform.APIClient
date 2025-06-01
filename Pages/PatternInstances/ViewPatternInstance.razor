@@ -1,0 +1,128 @@
+@page "/ViewPatternInstance/{InstanceId:guid}"
+@inject ITransformationService _transformationService;
+@inject IPatternService _patternService;
+@inject IDomainModelService _domainModelService;
+@inject IDomainService _domainService;
+
+<PatternManagementMenu/>
+
+@if(patternInsatnce !=null)
+{
+    <Table>
+        <TableHeader>
+            <TableHeaderCell>Field</TableHeaderCell>
+            <TableHeaderCell>Value</TableHeaderCell>
+        </TableHeader>
+        <TableBody>
+            <TableRow>
+                <TableRowCell>Pattern</TableRowCell>
+                <TableRowCell>@patternInsatnce.PatternName</TableRowCell>
+            </TableRow>
+            <TableRow>
+                <TableRowCell>Title</TableRowCell>
+                <TableRowCell>@patternInsatnce.Title</TableRowCell>
+            </TableRow>
+            <TableRow>
+                <TableRowCell>Name</TableRowCell>
+                <TableRowCell>@patternInsatnce.Name</TableRowCell>
+            </TableRow>
+            @foreach (var fieldValue in patternInsatnce.FieldValues)
+            {
+                <TableRow>
+                    <TableRowCell>@fieldValue.Name</TableRowCell>
+                    <TableRowCell>
+                        @if(!IsIOModel(@fieldValue.Name))
+                            @fieldValue.Value
+                        else
+                        {
+                            <a href="@GetPageUrl(fieldValue.Name)">
+                                @GetModelInfo(fieldValue.Name);
+                            </a>
+                        }
+                    </TableRowCell>
+                </TableRow>            
+            }
+
+        </TableBody>
+    </Table>
+}
+@code {
+    [Parameter]
+    public Guid InstanceId { get; set; }
+    private PatternInstanceDto? patternInsatnce;
+    private PatternDto? pattern;
+    private List<FieldDto> IOModelFields = new();
+    private Dictionary<string,ModelDto> IOModels = new();
+    private string base_url = "/DomainSpecificModel/{0}";
+    private string builtin_model_url = "/BuiltinModel/{0}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        patternInsatnce = await _patternService.GetPatternInstanceAsync(InstanceId);
+        if(patternInsatnce==null)
+            return;
+
+        pattern = await _patternService.GetPatternAsync(patternInsatnce.PatternId);
+        if(pattern == null)
+            return;
+
+        IOModelFields = pattern.Fields.Where(f=>f.Type == FieldType.InputModel || f.Type == FieldType.OutputModel).ToList();
+        foreach(var field in IOModelFields)
+        {
+            var fieldValue = patternInsatnce.FieldValues.Where(f=>f.Name.ToLower() == field.Name.ToLower()).FirstOrDefault();
+            if(fieldValue !=null)
+            {
+                Guid modelId;
+                var result = Guid.TryParse(fieldValue.Value,out modelId);
+
+                var domainModel = result == true ? 
+                                    await _domainModelService.GetDomainModelById(modelId) :
+                                    null;
+                
+                var modelDto = domainModel != null ?
+                                    await _domainService.FindModelByIdAysnc(domainModel.DomainId,domainModel.Id) :
+                                    null;
+
+                if(modelDto!=null)
+                    IOModels.Add(field.Name,modelDto);            
+            }
+        }
+    }
+    private string GetPageUrl(string fieldName)
+    {
+        if(patternInsatnce == null)        
+            return "";
+        if(!IOModels.ContainsKey(fieldName))
+            return "";
+
+        ModelDto model = IOModels[fieldName];
+        if(model.Language.IsBuiltin)
+            return string.Format(builtin_model_url,model.Id);
+        else
+            return string.Format(base_url,model.Id);                                            
+    }
+    private string GetModelInfo(string fieldName)
+    {
+        if(patternInsatnce == null)        
+            return "[NULL]";
+        if(!IOModels.ContainsKey(fieldName))
+        {
+            var fieldvalue = patternInsatnce.FieldValues.Where(f=>f.Name.ToLower() == fieldName.ToLower()).FirstOrDefault();
+            if(fieldvalue == null)
+                return "[NULL]";
+            
+            return fieldvalue.Value;
+        }
+        
+        ModelDto model = IOModels[fieldName];
+        return $"Name : {model.Name} ; Type : {model.Type} ; Tag : {model.Tag}";
+    }
+
+    private bool IsIOModel(string fieldName)
+    {
+        if(IOModelFields == null)
+            return false;
+        
+        return IOModelFields.Exists(f=>f.Name.ToLower() == fieldName.ToLower());
+    }
+}

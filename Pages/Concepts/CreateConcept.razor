@@ -1,0 +1,220 @@
+@page "/CreateConcept"
+@inject IConceptService conceptService
+<DSLManagementMenu />
+<Addons>
+    <Addon AddonType="AddonType.Start">
+        <AddonLabel>Concept Name</AddonLabel>
+    </Addon>
+    <Addon AddonType="AddonType.Body">
+        <TextEdit Size="Size.Medium" Placeholder="Name" @bind-Text="@Concept.Name"></TextEdit>
+    </Addon>
+</Addons>
+<Addons>
+    <Addon AddonType="AddonType.Start">
+        <AddonLabel>Concept Type</AddonLabel>
+    </Addon>
+    <Addon AddonType="AddonType.Body">
+        <TextEdit Size="Size.Medium" Placeholder="Type" @bind-Text="@Concept.Type"></TextEdit>
+    </Addon>
+</Addons>
+<Button class="btn btn-primary" Color="Color.Primary" @onclick="Save">Create Concept</Button>
+<Button Color="Color.Secondary" Clicked="@ShowPropertyWindow">Add New Property</Button>
+<Button Color="Color.Secondary" Clicked="@ShowRelationWindow">Add New Relation</Button>
+
+<Table>
+    <TableHeader>
+        <TableRow>
+            <TableHeaderCell>Prperty Name</TableHeaderCell>
+            <TableHeaderCell>Prperty Type</TableHeaderCell>
+            <TableHeaderCell></TableHeaderCell>
+        </TableRow>
+    </TableHeader>
+    <TableBody>
+        @foreach (var property in Concept.Properties)
+        {
+            <TableRow>
+                <TableRowCell>@property.Name</TableRowCell>
+                <TableRowCell>@property.Type</TableRowCell>
+                <TableRowCell><Button Color="Color.Danger" Clicked="@(e=> DeleteProperty(property.Name,property.Type))">Delete</Button></TableRowCell>                
+            </TableRow>
+
+        }
+    </TableBody>
+</Table>
+
+<Table>
+    <TableHeader>
+        <TableRow>
+            <TableHeaderCell>Relation Name</TableHeaderCell>
+            <TableHeaderCell>Relation Target</TableHeaderCell>
+            <TableHeaderCell>Relation Multiplicity</TableHeaderCell>
+            <TableHeaderCell></TableHeaderCell>
+        </TableRow>
+    </TableHeader>
+    <TableBody>
+        @foreach (var relation in Concept.Relations)
+        {
+            <TableRow>
+                <TableRowCell>@relation.Name</TableRowCell>
+                <TableRowCell>@relation.Target</TableRowCell>
+                <TableRowCell>@relation.Multiplicity</TableRowCell>
+                <TableRowCell><Button Color="Color.Danger" Clicked="@(e=> DeleteRelation(relation.Name,relation.Target))">Delete</Button></TableRowCell>                
+            </TableRow>
+
+        }
+    </TableBody>
+</Table>
+
+<Modal @bind-Visible="@propWindowVisible">
+    <ModalContent Centered>
+        <ModalHeader>
+            <ModalTitle>New Property</ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            <Field>
+                <FieldLabel>Name</FieldLabel>
+                <TextEdit Placeholder="Enter name..." @bind-Text="@PropertyName" />
+            </Field>
+            <Field>
+                <FieldLabel>Type</FieldLabel>
+                <TextEdit Placeholder="Enter surname..." @bind-Text="@PropertyType" />
+            </Field>
+        </ModalBody>
+        <ModalFooter>
+            <Button Color="Color.Secondary" Clicked="@ClosePropertyPage">Close</Button>
+            <Button Color="Color.Primary" Clicked="@AddNewProperty">Save Changes</Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
+<Modal @bind-Visible="@relationWindowVisible">
+    <ModalContent Centered>
+        <ModalHeader>
+            <ModalTitle>New Relation</ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            <Field>
+                <FieldLabel>Name</FieldLabel>
+                <TextEdit Placeholder="Enter Relation Name..." @bind-Text="@RelationName" />
+            </Field>
+            <Field>
+                <FieldLabel>Target</FieldLabel>
+                <TextEdit Placeholder="Enter Relation Target..." @bind-Text="@Target" />
+            </Field>
+            <Field>
+                <FieldLabel>Multiplicity</FieldLabel>
+                <TextEdit Placeholder="Enter Relation Multiplicity..." @bind-Text="@Multiplicity" />
+            </Field>
+        </ModalBody>
+        <ModalFooter>
+            <Button Color="Color.Secondary" Clicked="@CloseRelationWindow">Close</Button>
+            <Button Color="Color.Primary" Clicked="@AddNewRelation">Save Changes</Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
+@code
+{
+    [Parameter]
+    public NewConceptDto Concept { get; set; }
+
+    private string PropertyName;
+    private string PropertyType;
+
+    private string RelationName;
+    private string Target;
+    private string Multiplicity;
+
+    private bool propWindowVisible;
+    private bool relationWindowVisible;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        Concept = new NewConceptDto();
+    }
+    private async Task Save()
+    {
+        Console.WriteLine("Save date .. ");
+        Console.WriteLine(Concept.Name);
+        Console.WriteLine(Concept.Type);
+        foreach(var prop in Concept.Properties)
+        {
+            Console.WriteLine($"Propert : Name = {prop.Name} , Type = {prop.Type}");
+        }
+        await conceptService.CreateConceptAsync(Concept);
+    }
+
+    private Task ShowPropertyWindow()
+    {
+        propWindowVisible = true;
+
+        return Task.CompletedTask;
+    }
+    private Task ClosePropertyPage()
+    {
+        propWindowVisible = false;
+        PropertyName = "";
+        PropertyType = "";
+        return Task.CompletedTask;
+    }
+    private Task AddNewProperty()
+    {
+        propWindowVisible = false;
+        Console.WriteLine(PropertyName);
+        Console.WriteLine(PropertyType);
+        Concept.AddProperty(PropertyName, PropertyType);
+        PropertyName = "";
+        PropertyType = "";
+        return Task.CompletedTask;
+    }
+
+    private Task ShowRelationWindow(){
+        relationWindowVisible = true;
+        return Task.CompletedTask;
+    }
+    private Task CloseRelationWindow()
+    {
+        relationWindowVisible = false;
+        RelationName = "";
+        Target = "";
+        Multiplicity="";
+        return Task.CompletedTask;
+    }
+    private Task AddNewRelation(){
+        relationWindowVisible = false;
+        Console.WriteLine(RelationName);
+        Console.WriteLine(Target);
+        Console.WriteLine(Multiplicity);
+        Concept.AddRelation(RelationName,Target,Multiplicity);
+        RelationName = "";
+        Target = "";
+        Multiplicity="";
+        return Task.CompletedTask;
+    }
+    private Task DeleteProperty(string propertyName,string propertyType)
+    {
+        Console.WriteLine(propertyName);
+        Console.WriteLine(propertyType);
+        var props = Concept.Properties.Where(p=>p.Name == propertyName && p.Type== propertyType).ToList();
+        foreach(var prop in props){
+            Console.WriteLine("Prop deleted");
+            Concept.Properties.Remove(prop);
+        }
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+    public Task DeleteRelation(string relationName,string target){
+        Console.WriteLine(relationName);
+        Console.WriteLine(target);
+        var rels = Concept.Relations.Where(r=>r.Name == relationName && r.Target== target).ToList();
+        foreach(var rel in rels){
+            Console.WriteLine("relation deleted");
+            Concept.Relations.Remove(rel);
+        }
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+}

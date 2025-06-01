@@ -1,0 +1,41 @@
+@page "/ListPatternInstanceTemplate/{PatternId:guid}"
+@inject IPatternInstanceTemplateService _patternnstanceTemplateService;
+@if(_patternInstanceTemplates==null){
+    @message
+}else
+{
+    <Table>
+        <TableHeader>
+            <TableHeaderCell>Name</TableHeaderCell>
+            <TableHeaderCell>Pattern</TableHeaderCell>
+            <TableHeaderCell>Category</TableHeaderCell>
+        </TableHeader>
+        <TableBody>
+            @foreach (var item in _patternInstanceTemplates)
+            {
+                <TableRow>
+                    <TableRowCell>
+                        <a href="@(string.Format(view_pattern_Instance_Template,item.Id))">@item.Title</a>
+                    </TableRowCell>
+                    <TableRowCell>@item.PatternName</TableRowCell>
+                    <TableRowCell>@item.PatternCategory</TableRowCell>
+                </TableRow>
+            }
+        </TableBody>
+    </Table>
+}
+@code
+{
+    [Parameter]
+    public Guid PatternId { get; set; }
+    private List<PatternInstanceTemplateDto>? _patternInstanceTemplates = null;
+    private string message = "Loading ...";
+    private string view_pattern_Instance_Template = "/ViewPatternInstanceTemplate/{0}";
+    protected override async Task OnInitializedAsync()
+    {
+        _patternInstanceTemplates = await _patternnstanceTemplateService.GetPatternSpecificTemplateAsync(PatternId);
+        message ="";
+        StateHasChanged();
+    }
+
+}

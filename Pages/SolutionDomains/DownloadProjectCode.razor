@@ -1,0 +1,251 @@
+@page "/DownloadProjectCode"
+@using ConceptDto = Dtos.DomainModels.ConceptDto;
+@using PropertyDto = Dtos.DomainConcepts.PropertyDto;
+
+@inject IProblemDomainService _problemDomainService;
+@inject IDomainService _domainService;
+@inject IDomainModelService _domainModelService;
+@inject IDomainConceptService _domainConceptService;
+@inject ITransformationService _transformationService;
+@inject IProjectFileService _projectFileService;
+
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is4">Problem Domains</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is8">
+                <Select TValue="Guid" SelectedValueChanged="@((args) => SelectProblemDomain(args))">
+                    <SelectItem Value="@(Guid.Empty)">-- Select Problem Domain --</SelectItem>
+                    @if (problemDomainOptions != null)
+                    {
+                        @foreach (var item in problemDomainOptions)
+                        {
+                            <SelectItem Value="@item.Id" TValue="Guid">@item.Title</SelectItem>
+                        }
+                    }
+                </Select>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is4">Project Files Model</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is8">
+            <Select TValue="Guid" SelectedValueChanged="@((args)=>SelectModel(args))">
+                <SelectItem Value="@(Guid.Empty)">-- Select Project Files Model --</SelectItem>
+                @if(domainModelOptions!=null)
+                {
+                    @foreach (var item in domainModelOptions)
+                    {
+                        <SelectItem Value="@item.Id" TValue="Guid">@item.Name</SelectItem>
+                    }
+                }
+            </Select>
+        </FieldBody>
+    </Field>
+</Fields>
+
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is4">File Concept</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is8">
+            <Select TValue="Guid" SelectedValueChanged="@((args)=>SelectType(args))">
+                <SelectItem Value="@(Guid.Empty)"> --- Seletc File Concept ---</SelectItem>
+                @if(conceptTypeOptions!=null)
+                {
+                    @foreach (var item in conceptTypeOptions)
+                    {
+                        <SelectItem Value="@item.Id">@item.Name</SelectItem>
+                    }
+                }
+            </Select>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is4">File Name Property</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is8">
+            <Select TValue="string" @bind-SelectedValue="@fileNameProperty">
+                <SelectItem Value="@("")">-- Select File Name Property --</SelectItem>
+                @if(propertyOptions!=null)
+                {
+                    @foreach (var item in propertyOptions)
+                    {
+                        <SelectItem Value="@item.Name">@item.Name : @item.Type</SelectItem>
+                    }
+                }
+            </Select>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is4">File Content Property</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is8">
+            <Select TValue="string" @bind-SelectedValue="@fileContentProperty">
+                <SelectItem Value="@("")">-- Select File Content Property --</SelectItem>
+                @if(propertyOptions!=null)
+                {
+                    @foreach (var item in propertyOptions)
+                    {
+                        <SelectItem Value="@item.Name">@item.Name : @item.Type</SelectItem>
+                    }
+                }
+            </Select>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is4">File Extension Property</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is8">
+            <Select TValue="string" @bind-SelectedValue="@fileExtensionProperty">
+                <SelectItem Value="@("")">-- Select File Extension Property --</SelectItem>
+                @if(propertyOptions!=null)
+                {
+                    @foreach (var item in propertyOptions)
+                    {
+                        <SelectItem Value="@item.Name">@item.Name : @item.Type</SelectItem>
+                    }
+                }
+            </Select>
+        </FieldBody>
+    </Field>
+</Fields>
+<Fields>
+    <Field Horizontal>
+        <FieldLabel ColumnSize="ColumnSize.Is4">File Relative Path Property</FieldLabel>
+        <FieldBody ColumnSize="ColumnSize.Is8">
+            <Select TValue="string" @bind-SelectedValue="@fileRelativePathProperty">
+                <SelectItem Value="@("")">-- Select File Relative Path --</SelectItem>
+                @if(propertyOptions!=null)
+                {
+                    @foreach (var item in propertyOptions)
+                    {
+                        <SelectItem Value="@item.Name">@item.Name : @item.Type</SelectItem>
+                    }
+                }
+            </Select>
+        </FieldBody>
+    </Field>
+</Fields>
+
+
+<Fields>
+    <Field Horizontal>
+        <FieldBody>
+            <Button class="btn btn-primary" Color="Color.Primary" @onclick="ZipProject">Zip Project Code</Button>
+        </FieldBody>
+    </Field>
+</Fields>
+@if(!string.IsNullOrEmpty(project_file_url) && zipFileGenerated)
+{
+    <a href="@(project_file_url)" target="_blank"> Download Project</a>
+}
+
+@code{
+    private Guid SelectedProblemDomainId;
+    private List<ProblemDomainDto>? problemDomainOptions = null;
+
+    Guid selectedModelId;
+    private List<ModelDto>? domainModelOptions = null;
+    
+    private List<ConceptDto>? conceptTypeOptions = null;
+    private List<PropertyDto>? propertyOptions = null;
+    private bool zipFileGenerated = false;
+    private string fileConcept;
+    private string fileNameProperty;
+    private string fileContentProperty;
+    private string fileExtensionProperty;
+    private string fileRelativePathProperty;
+
+    private string project_file_url = "";
+    protected override async Task OnInitializedAsync()
+    {
+        await GetProblemDomains();
+    }
+
+    private async Task GetProblemDomains()
+    {
+        var items = await _problemDomainService.GetProblemDomainsAsync();
+        if (items == null)
+        {
+            problemDomainOptions = new();
+            SelectedProblemDomainId = Guid.Empty;
+        }
+        else
+        {
+            problemDomainOptions = items.ToList();
+            SelectedProblemDomainId = problemDomainOptions[0].Id;
+        }
+    }
+    private async Task SelectProblemDomain(Guid problemDomainId){
+        SelectedProblemDomainId = problemDomainId;
+        await UpdateDomainModelOptions();
+    }
+    private async Task UpdateDomainModelOptions()
+    {
+        if (problemDomainOptions == null)
+        {
+            domainModelOptions = null;
+            return;
+        }
+        ProblemDomainDto? problemDomainDto = problemDomainOptions.Find(problemDomain => problemDomain.Id == SelectedProblemDomainId);
+        if (problemDomainDto == null)
+        {
+            domainModelOptions = null;
+            return;
+        }
+        List<ModelDto> models = new List<ModelDto>();
+        foreach (var subDomain in problemDomainDto.SubDomains)
+        {
+            var items = await _domainService.GetDomainModelsAsync(subDomain.Id);
+            if (items != null)
+                models.AddRange(items);
+        }
+        domainModelOptions = models;
+    }
+
+    private async Task SelectModel(Guid modelId)
+    {
+        selectedModelId = modelId;
+        DomainModelDto? domainModel = await _domainModelService.GetDomainModelById(modelId);
+        if(domainModel!=null){
+            conceptTypeOptions = domainModel.Concepts;
+            project_file_url = _projectFileService.GetProjectFileUrl(modelId);
+            StateHasChanged();
+        }
+        else
+        {
+            conceptTypeOptions = null;
+            project_file_url = string.Empty;
+        }
+            
+    }
+
+    private async Task SelectType(Guid conceptId){
+        DomainConceptDto? domainConceptDto = await _domainConceptService.GetDomainConceptByIdAsync(selectedModelId,conceptId);
+        if(domainConceptDto!=null){
+            fileConcept = domainConceptDto.FullName;
+            propertyOptions = domainConceptDto.Properties;
+        }else{
+            fileConcept = string.Empty;
+            propertyOptions = null;
+        }
+    }
+
+    private async Task ZipProject()
+    {
+        var request = new ArchiveProjectCodeRequest(
+                                selectedModelId,fileConcept,
+                                fileNameProperty,
+                                fileContentProperty,
+                                fileExtensionProperty,
+                                fileRelativePathProperty);
+
+        await _transformationService.ArchiveProjectAsync(request);
+        zipFileGenerated = true;
+        StateHasChanged();
+
+    }
+}

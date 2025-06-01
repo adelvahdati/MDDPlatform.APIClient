@@ -1,0 +1,36 @@
+<Fields>
+    <Field>
+        <FieldLabel></FieldLabel>
+        <TextEdit Placeholder="Enter Property Name" @bind-Text="@_property_name"></TextEdit>
+    </Field>
+    <Field>
+        <FieldLabel></FieldLabel>
+        <TextEdit Placeholder="Enter Value Expression" @bind-Text="@_valueExpression" />
+    </Field>
+    <Field>
+        <FieldLabel></FieldLabel>
+        <Button class="btn btn-primary" Color="Color.Primary" @onclick="SetPropertyValue">Add</Button>
+    </Field>
+</Fields>
+@if(MemberValues!=null)
+{
+    <Table>
+        <TableHeader>
+            <TableHeaderCell>Name</TableHeaderCell>
+            <TableHeaderCell>Value Expression</TableHeaderCell>
+            <TableHeaderCell></TableHeaderCell>
+        </TableHeader>
+        <TableBody>
+            @foreach (var item in MemberValues)
+            {
+                <TableRow>
+                    <TableRowCell>@item.Name</TableRowCell>
+                    <TableRowCell>@item.ValueExpression</TableRowCell>
+                    <TableRowCell>
+                        <Button class="btn btn-primary" Color="Color.Danger" Clicked="@(()=>DeletePropertyValue(item))">Delete</Button>
+                    </TableRowCell>
+                </TableRow>
+            }
+        </TableBody>
+    </Table>
+}

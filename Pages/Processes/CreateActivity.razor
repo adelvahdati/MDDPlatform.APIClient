@@ -1,0 +1,128 @@
+@page "/CreateActivity/{ProcessId:guid}/{PhaseId:guid}"
+@inject IProcessService _processService;
+@inject IPipelineService _pipelineService;
+<ProcessManagementMenu></ProcessManagementMenu>
+<Tabs SelectedTab="@selectedTab" SelectedTabChanged="@OnTabChange">
+    <Items>
+        <Tab Name="activities">Current Activities</Tab>
+        <Tab Name="pipelines">Create Activity From Pipelines</Tab>
+        <Tab Name="manual">Create Activity</Tab>
+    </Items>
+    <Content>
+        <TabPanel Name="activities">
+            @if(activities == null)
+            {
+                <p>Loading ...</p>
+            }else       
+            {
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHeaderCell>Title</TableHeaderCell>
+                            <TableHeaderCell></TableHeaderCell>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        @foreach (var item in activities)
+                        {
+                            <TableRow>
+                                <TableRowCell>
+                                    <a href="@string.Format(task_page_url,ProcessId,PhaseId,item.Id)">@item.Title</a>                        
+                                </TableRowCell>
+                                <TableRowCell>
+                                    <Button Color="Color.Danger" Clicked="@(()=>Delete(ProcessId,PhaseId,item.Id))">Delete</Button>
+                                </TableRowCell>
+                            </TableRow>                
+                        }
+                    </TableBody>
+                </Table>    
+            }
+        </TabPanel>
+        <TabPanel Name="pipelines">
+            @if(pipelines!=null)
+            {
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHeaderCell>Title</TableHeaderCell>
+                            <TableHeaderCell></TableHeaderCell>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        @foreach (var item in pipelines)
+                        {
+                            <TableRow>
+                                <TableRowCell>
+                                    <TextEdit @bind-Text="item.Title"/>                                    
+                                </TableRowCell>
+                                <TableRowCell>
+                                    <Button Color="Color.Primary" Clicked="@(()=>CreateActivityFromPipelineAsync(item.Id,item.Title))">Create Activity</Button>
+                                </TableRowCell>
+                            </TableRow>
+                        }
+                    </TableBody>
+                </Table>
+            }
+        </TabPanel>
+        <TabPanel Name="manual">
+            <Fields>
+                <Field Horizontal>
+                    <FieldLabel ColumnSize="ColumnSize.Is4">Activity Title</FieldLabel>
+                    <FieldBody>
+                        <TextEdit Placeholder="Enter the title of activity" @bind-Text="@title"></TextEdit>
+                    </FieldBody>
+                </Field>
+            </Fields>
+            <Field Horizontal>
+                <FieldLabel></FieldLabel>
+                <Button class="btn btn-primary" Color="Color.Primary" @onclick="Create">Create Activity</Button>
+            </Field>
+        </TabPanel>
+    </Content>
+</Tabs>
+@code{
+    [Parameter]
+    public Guid ProcessId {get;set;}
+    [Parameter]
+    public Guid PhaseId {get;set;}
+    private string title;
+    private List<ActivityDto> activities = null;
+    private List<PipelineDto> pipelines = null;
+    private string task_page_url="/CreateTask/{0}/{1}/{2}";
+    private string selectedTab = "activities";
+    private void OnTabChange(string name){
+        selectedTab = name;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetPipelinesAsync();
+        await GetActivitiesAsync();
+    }
+    private async Task GetPipelinesAsync()
+    {
+        var result = await _pipelineService.GetPipelinesAsync(); 
+        pipelines =  result == null? new List<PipelineDto>() : result;
+        StateHasChanged();
+    }
+    private async Task GetActivitiesAsync()
+    {
+        var results = await _processService.GetActivitiesAsync(ProcessId,PhaseId);
+        activities = results == null ? new List<ActivityDto>() : results;        
+        StateHasChanged();
+    }
+    private async Task Create()
+    {
+        await _processService.CreateActivityAsync(ProcessId,PhaseId,title);
+        await GetActivitiesAsync();
+    }
+    private async Task Delete(Guid processId, Guid phaseId, Guid activityId)
+    {
+        await _processService.DeleteActivityAsync(processId,phaseId,activityId);
+        await GetActivitiesAsync();
+    }
+    private async Task CreateActivityFromPipelineAsync(Guid pipelineId, string title){
+        await _processService.CreateActivityFromPipelineAsync(ProcessId,PhaseId,pipelineId,title);
+        await GetActivitiesAsync();
+    }
+}

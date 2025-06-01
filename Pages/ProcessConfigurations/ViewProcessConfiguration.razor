@@ -1,0 +1,87 @@
+@page "/ViewProcessConfiguration/{ProcessConfigurationId:guid}"
+@inject IProcessConfigurationService _processConfigurationService;
+@inject IDomainService _domainService
+@if(taskConfigurations!=null)
+{
+    @foreach (var taskConfig in taskConfigurations)
+    {
+        <Fields>
+            <Field Horizontal>
+                <FieldLabel TextColor="TextColor.Info"><b>@taskConfig.TaskTitle</b></FieldLabel>
+                <FieldBody>
+                    <Table>
+                        <TableHeader>
+                            <TableHeaderCell>Parameter Name</TableHeaderCell>
+                            <TableHeaderCell>Parameter Value</TableHeaderCell>
+                        </TableHeader>
+                        <TableBody>
+                            @foreach (var parameter in @taskConfig.ParameterValues)
+                            {
+                                <TableRow>
+                                    <TableRowCell>@parameter.Name</TableRowCell>
+                                    <TableRowCell>@GetParameterValue(parameter.Value)</TableRowCell>
+                                </TableRow>
+                            }
+                        </TableBody>
+                    </Table>
+                </FieldBody>
+            </Field>
+        </Fields>
+    }
+}
+@code
+{
+    [Parameter]
+    public Guid ProcessConfigurationId {get;set;}
+    private ProcessConfigurationDto? processConfiguration = null;
+    private List<TaskConfigurationDto>? taskConfigurations = null;
+    private List<DomainModelInfo>? DomainModelsInfo = null;
+    protected override async Task OnInitializedAsync()
+    {
+        await GetTaskConfigurations();
+    }
+    private async Task GetTaskConfigurations()
+    {
+        processConfiguration = await _processConfigurationService.GetProcessConfigurationAsync(ProcessConfigurationId);
+        if(processConfiguration!=null)
+        {
+            taskConfigurations = processConfiguration.TaskConfigurations.Where(taskConfig=>taskConfig.ParameterValues!=null && taskConfig.ParameterValues.Count>0).ToList();
+        }
+        if(taskConfigurations!=null){
+            var paramValues = taskConfigurations
+                                .SelectMany(taskConfig=>taskConfig.ParameterValues)
+                                .Where(taskParamVal=> taskParamVal.IsConfigured && taskParamVal.Value!=null)
+                                .Select(taskParam=> taskParam.Value)
+                                .Distinct()
+                                .ToList();
+            
+            var modelIds = new List<Guid>();
+            foreach(var value in paramValues)
+            {
+                if(Guid.TryParse(value, out Guid result))
+                    modelIds.Add(result);
+            }
+            
+            if(modelIds.Count>0)
+                DomainModelsInfo = await _domainService.FindDomainModelsByIdAsync(modelIds);            
+        }
+        StateHasChanged();
+    }
+    private string GetParameterValue(string? value){
+        if(value == null)
+            return "";
+        
+        if(!Guid.TryParse(value, out Guid result))
+            return value;
+        
+        if(DomainModelsInfo == null)
+            return value;
+
+        var domainModel = DomainModelsInfo.Where(domainModel=> domainModel.Id == result).FirstOrDefault();
+        if(domainModel == null)
+            return value;
+        
+        return string.Format("{0}({1})",domainModel.Name,domainModel.Language.Name);
+
+    }
+}

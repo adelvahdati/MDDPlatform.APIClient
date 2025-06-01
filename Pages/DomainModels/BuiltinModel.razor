@@ -1,0 +1,254 @@
+@page "/BuiltinModel/{DomainModelId:guid}"
+@inject IDomainModelService domainModelService
+@using ConceptDto = Dtos.DomainModels.ConceptDto;
+@using PropertyDto = Dtos.DomainConcepts.PropertyDto;
+<ProblemDomainManagementMenu/>
+@if(model!=null)
+{
+    <Fields>
+        <Field>
+            <FieldLabel></FieldLabel>
+            <Button Color="Color.Danger" Clicked="@ClearModel">Clear</Button>
+        </Field>
+        <Field>
+            <FieldLabel></FieldLabel>
+            <a href="@(string.Format(export_page_url,model.Id))">
+                Export  Model
+            </a>
+        </Field>
+        <Field>
+            <FieldLabel></FieldLabel>
+            <a href="@(string.Format(solution_explorer_page_url,model.Id))">
+                Solution Explorer
+            </a>
+        </Field>
+        <Field>
+            <FieldLabel></FieldLabel>
+            <a href="@(string.Format(class_diagram_page_url,model.Id))">
+                Class Diagram
+            </a>
+        </Field>
+    </Fields>
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Name</TableHeaderCell>
+                <TableHeaderCell>Type</TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var concept in model.Concepts)
+            {
+                <TableRow>
+                    <TableRowCell>@concept.Name</TableRowCell>
+                    <TableRowCell>@concept.Type</TableRowCell>
+                    <TableRowCell>
+                        <Button Color="Color.Danger" Clicked="@(()=>DeleteConcept(concept))">Delete</Button>   
+                    </TableRowCell>
+                    <TableRowCell>
+                        <Button Color="Color.Info" Clicked="@(()=>ViewConcept(concept))">View</Button>   
+                    </TableRowCell>
+                    <TableRowCell>
+                        <Button Color="Color.Primary" Clicked="@(()=>EditConcept(concept))">Edit</Button>   
+                    </TableRowCell>
+                </TableRow>
+            }
+        </TableBody>
+    </Table>    
+}
+<Modal @bind-Visible="showViewConcept">
+    <ModalContent Size="ModalSize.Fullscreen">
+        <ModalHeader>
+            <ModalTitle>View Domain Concept Specifications</ModalTitle>
+            <CloseButton/>
+        </ModalHeader>
+        <ModalBody>
+            <Tabs   SelectedTab="@ViewWindowSelectedTab" SelectedTabChanged="@OnViewWindowTabChanged">
+                <Items>
+                    <Tab Name="properties">Properties</Tab>
+                    <Tab Name="relations">Relations</Tab> 
+                    <Tab Name="operations">Operations</Tab>
+                    <Tab Name="attributes">Attributes</Tab>
+                </Items>
+                <Content>
+                    <TabPanel Name="properties">
+                        @if(selectedDomainConcept!=null)
+                        {
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHeaderCell>Property Name</TableHeaderCell>
+                                        <TableHeaderCell>Property Type</TableHeaderCell>
+                                        <TableHeaderCell>Default Value</TableHeaderCell>
+                                        <TableHeaderCell>Property Attributes</TableHeaderCell>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    @foreach (var property in selectedDomainConcept.Properties)
+                                    {
+                                        <TableRow>
+                                            <TableRowCell>@property.Name</TableRowCell>
+                                            <TableRowCell>@PropertyTypeToString(property)</TableRowCell>
+                                            <TableRowCell>
+                                                @if(property.Value!=null)
+                                                {
+                                                    @property.Value
+                                                }
+                                            </TableRowCell>
+                                            <TableRowCell Style="word-wrap: break-word;">@string.Join(",",@property.Attributes.Select(i=>$"{i.Name}={i.Value}").ToList())</TableRowCell>                                           
+                                        </TableRow>
+                                    }
+                                </TableBody>
+                            </Table>
+                        }
+                    </TabPanel>
+                    <TabPanel Name="relations">
+                        @if(selectedDomainConcept!=null)
+                        {
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHeaderCell>Relation Name</TableHeaderCell>
+                                        <TableHeaderCell>Relation Target</TableHeaderCell>
+                                        <TableHeaderCell>Multiplicity</TableHeaderCell>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    @foreach (var relation in selectedDomainConcept.Relations)
+                                    {
+                                        <TableRow>
+                                            <TableRowCell>@relation.Name</TableRowCell>
+                                            <TableRowCell>@relation.Target</TableRowCell>
+                                            <TableRowCell>@relation.Multiplicity</TableRowCell>
+                                        </TableRow>
+                                    }
+                                </TableBody>
+                            </Table>
+                        }                
+                    </TabPanel>
+                    <TabPanel Name="operations">
+                        @if(selectedDomainConcept!=null)
+                        {
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHeaderCell>Operation Name</TableHeaderCell>
+                                        <TableHeaderCell>Operation Inputs</TableHeaderCell>
+                                        <TableHeaderCell>Operation Output</TableHeaderCell>
+                                        <TableHeaderCell>Operation Attributes</TableHeaderCell>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    @foreach (var operation in selectedDomainConcept.Operations)
+                                    {
+                                        <TableRow>
+                                            <TableRowCell>@operation.Name</TableRowCell>
+                                            <TableRowCell>@string.Join(",",@operation.Inputs.Select(i=>$"{i.Type} {i.Name}").ToList())</TableRowCell>
+                                            <TableRowCell>@operation.Output.Type</TableRowCell>
+                                            <TableRowCell Style="word-wrap: break-word;">@string.Join(",",@operation.Attributes.Select(i=>$"{i.Name}={i.Value}").ToList())</TableRowCell>
+                                        </TableRow>
+                                    }
+                                </TableBody>
+                            </Table>
+                        }                                
+                    </TabPanel>
+                    <TabPanel Name="attributes">
+                        @if(selectedDomainConcept!=null)
+                        {
+                            <Table>
+                                <TableHeader>
+                                    <TableHeaderCell>Name</TableHeaderCell>
+                                    <TableHeaderCell>Value</TableHeaderCell>
+                                </TableHeader>
+                                <TableBody>
+                                    @foreach (var attr in selectedDomainConcept.Attributes)
+                                    {
+                                        <TableRow>
+                                            <TableRowCell>@attr.Name</TableRowCell>
+                                            <TableRowCell>@attr.Value</TableRowCell>
+                                        </TableRow>
+                                    }
+                                </TableBody>
+                            </Table>
+                        }
+                    </TabPanel>
+                </Content>
+            </Tabs>
+        </ModalBody>
+        <ModalFooter>
+            <Button Color="Color.Secondary" Clicked="@CloseViewConceptWindow">Close</Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+@code
+{
+    [Parameter]
+    public Guid DomainModelId { get; set; }
+    private Dictionary<Guid,DomainConceptDto> domainConcepts = new();
+    private DomainConceptDto? selectedDomainConcept = null;
+    private DomainModelDto? model = null;
+    private bool showViewConcept = false;
+
+    string export_page_url = "/ExportModel/{0}";
+    string solution_explorer_page_url = "/SolutionExplorer/{0}";
+    string class_diagram_page_url = "/ClassDiagram/{0}";
+    string ViewWindowSelectedTab = "properties";
+    private Task OnViewWindowTabChanged( string name )
+    {
+        ViewWindowSelectedTab = name;
+
+        return Task.CompletedTask;
+    }    
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetModelAsync();
+    }
+    private async Task GetModelAsync()
+    {
+        model = await domainModelService.GetDomainModelById(DomainModelId);
+        StateHasChanged();
+    }
+    private async Task DeleteConcept(ConceptDto concept)
+    {
+        await domainModelService.RemoveDomainConceptAsync(DomainModelId,concept.Name,concept.Type);
+        await GetModelAsync();
+    }
+    private async Task ViewConcept(ConceptDto concept)
+    {
+        if(domainConcepts.ContainsKey(concept.Id))
+            selectedDomainConcept = domainConcepts[concept.Id];
+        else
+        {
+            string fullname = concept.GetFullName();
+            selectedDomainConcept = await domainModelService.GetDomainConceptByFullName(DomainModelId,fullname);
+            if(selectedDomainConcept!=null)
+                domainConcepts.Add(concept.Id,selectedDomainConcept);
+        }
+
+        showViewConcept = true;
+    }
+    private void CloseViewConceptWindow(){
+        showViewConcept = false;
+        selectedDomainConcept = null;
+    }
+    private async Task EditConcept(ConceptDto concept)
+    {
+
+    }
+    private async Task ClearModel(){
+        await domainModelService.ClearConceptBasedModel(DomainModelId);
+        await GetModelAsync();
+    }
+    private string PropertyTypeToString(PropertyDto property)
+    {
+        if(property.IsCollection)
+            return $"Collection of {property.Type}";
+        else
+            return property.Type;
+    }
+    
+}

@@ -1,0 +1,134 @@
+@page "/LanguageDetail/{LanguageId:guid}"
+@using ConceptDto = MDDPlatform.APIClient.Dtos.Concepts.ConceptDto;
+@inject ILanguageService languageService;
+
+@if (languageDetail == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Concept Name</TableHeaderCell>
+                <TableHeaderCell>Concept Type</TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var concept in languageDetail.Concepts)
+            {
+                <TableRow>
+                    <TableRowCell>@concept.Name</TableRowCell>
+                    <TableRowCell>@concept.Type</TableRowCell>
+                    <TableRowCell><Button Color="Color.Primary" Clicked="@(e=> ViewConcept(concept))">Detail</Button></TableRowCell>
+                </TableRow>
+
+            }
+        </TableBody>
+    </Table>
+
+<Modal @bind-Visible="@show_detail_window">
+    <ModalContent Size="ModalSize.ExtraLarge">
+        <ModalHeader>
+            <ModalTitle>                
+                @if(SelectedConcept!=null)
+                {
+                    @string.Format("View Concept {0} : {1}",@SelectedConcept.Name,@SelectedConcept.Type)
+                }                    
+            </ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            <Tabs  SelectedTab="@ViewWindowSelectedTab" SelectedTabChanged="@OnViewWindowTabChanged">
+                <Items>
+                    <Tab Name="properties">Properties</Tab>
+                    <Tab Name="relations">Relations</Tab>
+                </Items>
+                <Content>
+                    <TabPanel Name="properties">
+                        @if(SelectedConcept!=null)
+                        {
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHeaderCell>Property Name</TableHeaderCell>
+                                        <TableHeaderCell>Property Type</TableHeaderCell>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    @foreach (var property in SelectedConcept.Properties)
+                                    {
+                                        <TableRow>
+                                            <TableRowCell>@property.Name</TableRowCell>
+                                            <TableRowCell>@property.Type</TableRowCell>
+                                        </TableRow>
+                                    }
+                                </TableBody>
+                            </Table>
+                        }
+                    </TabPanel>
+                    <TabPanel Name="relations">
+                        @if(SelectedConcept!=null)
+                        {
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHeaderCell>Relation Name</TableHeaderCell>
+                                        <TableHeaderCell>Relation Target</TableHeaderCell>
+                                        <TableHeaderCell>Multiplicity</TableHeaderCell>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    @foreach (var relation in SelectedConcept.Relations)
+                                    {
+                                        <TableRow>
+                                            <TableRowCell>@relation.Name</TableRowCell>
+                                            <TableRowCell>@relation.Target</TableRowCell>
+                                            <TableRowCell>@relation.Multiplicity</TableRowCell>
+                                        </TableRow>
+                                    }
+                                </TableBody>
+                            </Table>
+                        }
+                    </TabPanel>
+                </Content>
+            </Tabs>
+        </ModalBody>
+        <ModalFooter>
+            <Button Color="Color.Secondary" Clicked="@CloseWindow">Close</Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+}
+
+
+@code
+{
+    [Parameter]
+    public Guid LanguageId {get;set;}
+    private ConceptDto? SelectedConcept = null;
+    private LanguageDetailDto? languageDetail = null;
+    private bool show_detail_window = false;
+    string ViewWindowSelectedTab = "properties";
+
+    protected override async Task OnInitializedAsync()
+    {
+        languageDetail = await languageService.GetLanguageDetailAsync(LanguageId);
+        StateHasChanged();
+    }
+    private void ViewConcept(ConceptDto concept){
+        SelectedConcept = concept;
+        show_detail_window = true;
+    }
+    private void CloseWindow(){
+        SelectedConcept = null;
+        show_detail_window = false;
+    }
+    private void OnViewWindowTabChanged( string name )
+    {
+        ViewWindowSelectedTab = name;
+    }    
+
+}

@@ -1,0 +1,154 @@
+@page "/ViewPackage/{packageId:guid}"
+@inject IDomainService domainService;
+@inject IProblemDomainService problemDomainService;
+@inject IPackageService packageService;
+
+@if(package != null)
+{
+    <Fields>
+        <Field Horizontal>
+            <FieldLabel ColumnSize="ColumnSize.Is2">Package Title</FieldLabel>
+            <FieldBody ColumnSize="ColumnSize.Is10">
+                @package.Title
+            </FieldBody>
+        </Field>
+    </Fields>
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Name</TableHeaderCell>
+                <TableHeaderCell>Tag</TableHeaderCell>
+                <TableHeaderCell>Type</TableHeaderCell>
+                <TableHeaderCell>Level</TableHeaderCell>
+                <TableHeaderCell>Language</TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var model in package.ModelTemplates)
+            {
+                <TableRow>
+                    <TableRowCell>
+                        @ResolveExpressionValue(model.NameExpression);
+                    </TableRowCell>
+                    <TableRowCell>
+                        @ResolveExpressionValue(model.TagExpression);
+                    </TableRowCell>
+                    <TableRowCell>@model.Type</TableRowCell>
+                    <TableRowCell>@model.Level</TableRowCell>
+                    <TableRowCell>@model.LanguageName</TableRowCell>
+                </TableRow>
+            }
+        </TableBody>
+    </Table>
+}
+    <Fields>
+        <Field Horizontal>
+            <FieldLabel ColumnSize="ColumnSize.Is2">Problem Domains</FieldLabel>
+            <FieldBody ColumnSize="ColumnSize.Is10">
+                    <Select TValue="Guid" SelectedValueChanged="@((args) => SelectProblemDomain(args))">
+                        <SelectItem Value="@(Guid.Empty)">-- Select Problem Domain --</SelectItem>
+                        @if (problemDomainOptions != null)
+                        {
+                            @foreach (var item in problemDomainOptions)
+                            {
+                                <SelectItem Value="@item.Id" TValue="Guid">@item.Title</SelectItem>
+                            }
+                        }
+                    </Select>
+            </FieldBody>
+        </Field>
+    </Fields>
+    <Fields>
+        <Field Horizontal>
+            <FieldLabel ColumnSize="ColumnSize.Is2">Sub Domains</FieldLabel>
+            <FieldBody ColumnSize="ColumnSize.Is10">
+                    <Select TValue="Guid" SelectedValueChanged="@((args) => SelectSubDomain(args))">
+                        <SelectItem Value="@(Guid.Empty)">-- Select Sub Domain --</SelectItem>
+                        @if (subDomainOptions != null)
+                        {
+                            @foreach (var item in subDomainOptions)
+                            {
+                                <SelectItem Value="@item.Id" TValue="Guid">@item.Name</SelectItem>
+                            }
+                        }
+                    </Select>
+            </FieldBody>
+        </Field>
+    </Fields>
+    <Fields>
+        <Field Horizontal>
+            <FieldBody>
+                <Button class="btn btn-primary" Color="Color.Primary" @onclick="CreateModelsForDomain">Create Domain Models</Button>
+            </FieldBody>
+        </Field>
+    </Fields>
+
+
+@code{
+    [Parameter]
+    public Guid packageId { get; set; }
+    private PackageDto? package = null;
+    private string title="";
+    private Guid SelectedProblemDomainId;
+    private Guid SelectedDomainId = Guid.Empty;
+    private List<ProblemDomainDto>? problemDomainOptions = null;
+    private IEnumerable<SubDomainDto>? subDomainOptions = null;
+
+    protected override async Task OnInitializedAsync(){
+        package = await packageService.GetAsync(packageId);
+        await GetProblemDomainsAsync();
+        StateHasChanged();
+    }
+
+    private async Task CreateModelsForDomain()
+    {
+        if(SelectedDomainId!=Guid.Empty)
+            await packageService.CreateModelsFromPackage(packageId,SelectedDomainId);
+        
+    }
+    private async Task GetProblemDomainsAsync()
+    {
+        var items = await problemDomainService.GetProblemDomainsAsync();
+        if (items == null)
+            problemDomainOptions = new();
+        else
+            problemDomainOptions = items.ToList();
+    }
+    private async Task SelectProblemDomain(Guid problemDomainId)
+    {
+        SelectedProblemDomainId = problemDomainId;
+
+        if(problemDomainId!=Guid.Empty)
+            subDomainOptions = await problemDomainService.GetSubDomainsAsync(problemDomainId);
+        else
+            subDomainOptions = null;
+
+        StateHasChanged();
+    }
+    private void SelectSubDomain(Guid domainId)
+    {
+        if(domainId!=Guid.Empty)
+            SelectedDomainId = domainId;
+        else
+            SelectedDomainId = Guid.Empty;
+
+        StateHasChanged(); 
+    }
+
+    private string ResolveExpressionValue(string text)
+    {
+        if(SelectedDomainId == Guid.Empty)
+            return text;
+        
+        if(subDomainOptions == null)
+            return text;
+        var domain = subDomainOptions.FirstOrDefault(d=>d.Id==SelectedDomainId);
+        if(domain == null)
+            return text;
+        
+        var dic = new Dictionary<string,string>();
+        dic.Add("Domain.Name",domain.Name);
+        return text.ResolveExpression(dic);
+    }
+
+}

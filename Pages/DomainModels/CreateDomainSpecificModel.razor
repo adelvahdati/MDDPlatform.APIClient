@@ -1,0 +1,792 @@
+@page "/DomainSpecificModel/{DomainModelId:guid}"
+@using Microsoft.AspNetCore.SignalR.Client
+@using System.Text;
+
+@inject IDomainModelService domainModelService
+@inject IDomainConceptService domainConceptService
+@inject IConfiguration configuration;
+@using DomainObjectRelationDto = MDDPlatform.APIClient.Dtos.DomainObjects.DomainObjectRelationDto;
+
+<ProblemDomainManagementMenu/>
+
+<Fields>
+    <Field>
+        <FieldLabel></FieldLabel>
+        <a href="@text_editor_page_url">
+            Script Editor
+        </a>
+    </Field>
+    <Field>
+        <FieldLabel>
+            <a href="@domain_model_scripts">
+                Domain Model Scripts
+            </a>
+        </FieldLabel>
+    </Field>
+    <Field>
+        <FieldLabel>
+            <a href="@object_diagram_page_url">
+                Object Diagram
+            </a>
+        </FieldLabel>
+    </Field>
+    <Field>
+        <FieldLabel>
+            <a href="@class_diagram_page_url">
+                Metamodel
+            </a>
+        </FieldLabel>
+    </Field>
+    <Field>
+        <FieldLabel>
+            <a href="@reuse_model_page_url">
+                Reuse Model
+            </a>
+        </FieldLabel>
+    </Field>
+</Fields>
+@if (model != null)
+{
+    <Accordion>
+        @foreach (var concept in model.Concepts)
+        {
+            <Collapse Visible="@collapseSate[concept.Id]">
+                <CollapseHeader>
+                    <Heading Size="HeadingSize.Is2">
+                        <Button Clicked="@(()=>ColapseConcept(concept.Id))">
+                            <Div>
+                                @concept.Name : @concept.Type
+                            </Div>
+                        </Button>
+                    </Heading>
+                </CollapseHeader>
+                <CollapseBody>
+                    <Button Color="Color.Primary" Clicked="@(()=> ShowCreateInstanceWindow(concept.Id))">Create
+                        Instance
+                    </Button>
+                    <ListGroup Flush>
+                    @if (DomainConcepts.ContainsKey(concept.Id))
+                        {
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHeaderCell>Name</TableHeaderCell>
+                                        <TableHeaderCell>Type</TableHeaderCell>
+                                        <TableHeaderCell></TableHeaderCell>
+                                        <TableHeaderCell></TableHeaderCell>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    @foreach (var instance in DomainConcepts[concept.Id].Instances)
+                                    {
+                                        <TableRow>
+                                            <TableRowCell>@instance.Name</TableRowCell>
+                                            <TableRowCell>@instance.Type</TableRowCell>
+                                            <TableRowCell><Button Color="Color.Secondary"
+                                    Clicked="@(()=>ShouwUpdateInstanceWindow(@instance.Id))">Edit</Button>
+                                            </TableRowCell>
+                                            <TableRowCell><Button Color="Color.Info"
+                                    Clicked="@(()=>ViewInstanceWindow(@instance.Id))">View</Button>
+                                            </TableRowCell>
+                                            <TableRowCell><Button Color="Color.Danger"
+                                    Clicked="@(()=>DeleteDomainObject(@instance.Id,concept.Id))">Delete</Button>
+                                            </TableRowCell>
+                                        </TableRow>
+                                    }
+                                </TableBody>
+                            </Table>
+                        }
+                    </ListGroup>
+                </CollapseBody>
+            </Collapse>
+        }
+    </Accordion>
+    <Field Horizontal>
+        <FieldLabel></FieldLabel>
+        <MemoEdit Rows="12" @bind-Text="reports">
+        </MemoEdit>
+    </Field>
+    <Field Horizontal>
+        <FieldLabel></FieldLabel>
+        <Button Color="Color.Primary" Clicked="@ClearModel">Clear Model</Button>
+    </Field>
+}
+
+<Modal @bind-Visible="@createInstanceWindowVisible">
+    <ModalContent Size="ModalSize.ExtraLarge">
+        <ModalHeader>
+            <ModalTitle>New Instance</ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            <Tabs SelectedTab="@CreateWindowSelectedTab" SelectedTabChanged="@OnCreateWindowTabChanged">
+                <Items>
+                    <Tab Name="properties">Properties</Tab>
+                    <Tab Name="relations">Relations</Tab>
+                    <Tab Name="relationalDimensions">Relational Dimensions</Tab>
+                </Items>
+                <Content>
+                    <TabPanel Name="properties">
+                        @if(instance!=null)
+                        {
+                            <Field>
+                                <FieldLabel>Instance name</FieldLabel>
+                                <TextEdit Placeholder="Enter value..." @bind-Text="instance.InstanceName" />
+                            </Field>
+                            @foreach (var prop in instance.DomainObjectProperties)
+                            {
+                                <Field>
+                                    <FieldLabel>@prop.Name</FieldLabel>
+                                    <TextEdit Placeholder="Enter value..." @bind-Text="prop.Value" />
+                                </Field>
+                            }
+                        }
+                    </TabPanel>
+                    <TabPanel Name="relations">
+                        @if(instance !=null)
+                        {
+                            @foreach (var rel in instance.DomainObjectRelations)
+                            {
+                                <Field>
+                                    <FieldLabel>@rel.RelationName --> @rel.RelationTarget</FieldLabel>
+                                    <TextEdit Placeholder="Enter value..." @bind-Text="rel.TargetInstance" />
+                                </Field>
+                            }
+                        }                        
+                    </TabPanel>
+                    <TabPanel Name="relationalDimensions">
+                        <Field Horizontal>
+                            <FieldLabel>Name :</FieldLabel>
+                            <TextEdit Placeholder="Enter Relation Name..." @bind-Text="RelationalDimensionRelationName" />
+                        </Field>
+                        <Field Horizontal>
+                            <FieldLabel>Target :</FieldLabel>
+                            <TextEdit Placeholder="Enter Relation Target..." @bind-Text="RelationalDimensionRelationTarget" />
+                        </Field>
+                        <Field Horizontal>
+                            <FieldLabel>Add Relational Dimension :</FieldLabel>
+                            <Button Color="Color.Primary" Clicked="@(()=>AddRelationalDimension())">Add</Button>
+                        </Field>
+                        @if(instance!=null && instance.RelationalDimensions!=null)
+                        {
+                            <Table>
+                                <TableHeader>
+                                    <TableHeaderCell>Name</TableHeaderCell>
+                                    <TableHeaderCell>Target</TableHeaderCell>
+                                </TableHeader>
+                                <TableBody>
+                                    @foreach (var item in instance.RelationalDimensions)
+                                    {
+                                        <TableRow>
+                                            <TableRowCell>@item.Name</TableRowCell>
+                                            <TableRowCell>@item.Target</TableRowCell>
+                                        </TableRow>
+                                    }
+                                </TableBody>
+                            </Table>
+                        }
+                    </TabPanel>
+                </Content>
+            </Tabs>
+        </ModalBody>
+        <ModalFooter>
+            <Button Color="Color.Secondary" Clicked="@CloseInstanceWindow">Close</Button>
+            <Button Color="Color.Primary" Clicked="@CreateInstance">Save Changes</Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
+<Modal @bind-Visible="@updateInstanceWindowVisible">
+    <ModalContent Size="ModalSize.ExtraLarge">
+        <ModalHeader>
+            <ModalTitle>Edit Instance</ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            <Tabs  SelectedTab="@EditWindowSelectedTab" SelectedTabChanged="@OnEditWindowTabChanged">
+                <Items>
+                    <Tab Name="properties">Properties</Tab>
+                    <Tab Name="relations">Relations</Tab>
+                    <Tab Name="relationalDimension">Relational Dimensions</Tab> 
+                </Items>
+                <Content>
+                    <TabPanel Name="properties">
+                        @if (selectedInstance != null)
+                        {
+                            <Field Horizontal>
+                                <FieldLabel>Instance name</FieldLabel>
+                                <TextEdit Placeholder="Enter value..." @bind-Text="selectedInstance.InstanceName" />
+                            </Field>
+                            @foreach (var prop in selectedInstance.Properties)
+                            {
+                                <Field Horizontal>
+                                    <FieldLabel>@prop.Name</FieldLabel>
+                                    <TextEdit Placeholder="Enter value..." @bind-Text="prop.Value" />
+                                </Field>
+                            }
+                        }
+                    </TabPanel>
+                    <TabPanel Name="relations">
+                        @if(selectedInstance!=null)
+                        {
+                            <Field Horizontal>
+                                <FieldLabel>Relation Name : </FieldLabel>
+                                <Select @bind-SelectedValue="@RelationKey">
+                                    <SelectItem Value="@string.Empty" TValue="string">Select Relation ...</SelectItem>
+                                    @foreach (var relation in selectedInstance.Relations)
+                                    {
+                                        <SelectItem Value="@RelationKeyGenerator(relation)" TValue="string">@relation.RelationName --> @relation.RelationTarget</SelectItem>
+                                    }
+                                </Select>
+                            </Field>
+                            <Field Horizontal>
+                                <FieldLabel>Target Instances</FieldLabel>
+                                <TextEdit @bind-Text="@RelationTargetInstances"></TextEdit>
+                            </Field>
+                            <Field Horizontal>
+                                <FieldLabel></FieldLabel>
+                                <Button Color="Color.Primary" Clicked="@(()=>AddTargetInstance(RelationKey,RelationTargetInstances))">Define Relation Target Instances</Button>
+                            </Field>
+                            <Table>
+                                <TableHeader>
+                                    <TableHeaderCell>Relation Name</TableHeaderCell>
+                                    <TableHeaderCell>Target Instance</TableHeaderCell>
+                                    <TableHeaderCell>Relation Target</TableHeaderCell>
+                                    <TableHeaderCell></TableHeaderCell>
+                                </TableHeader>
+                                <TableBody>
+                                    @foreach (var rel in selectedInstance.Relations)
+                                    {
+                                        @if(rel.TargetInstances!=null && rel.TargetInstances.Count>0)
+                                        {
+                                            @foreach (var target in rel.TargetInstances)
+                                            {
+                                                <TableRow>
+                                                    <TableRowCell>@rel.RelationName</TableRowCell>
+                                                    <TableRowCell>@ExtractName(target)</TableRowCell>
+                                                    <TableRowCell>@rel.RelationTarget</TableRowCell>
+                                                    <TableRowCell>
+                                                        <Button Color="Color.Danger" Clicked="@(()=>DeleteTargetInstance(rel.RelationName,rel.RelationTarget,target))">Delete</Button>   
+                                                    </TableRowCell>
+                                                </TableRow>                                            
+                                            }
+                                        }
+                                    }                                        
+                                </TableBody>
+                            </Table>
+                        }
+                    </TabPanel>
+                    <TabPanel Name="relationalDimension">
+                        <Field Horizontal>
+                            <FieldLabel>Relation Name</FieldLabel>
+                            <TextEdit @bind-Text="@RelationalDimensionRelationName"></TextEdit>
+                        </Field>
+                        <Field Horizontal>
+                            <FieldLabel>Relation Target</FieldLabel>
+                            <TextEdit @bind-Text="@RelationalDimensionRelationTarget"></TextEdit>
+                        </Field>
+                        <Field Horizontal>
+                            <FieldLabel></FieldLabel>
+                            <Button Color="Color.Primary" Clicked="@(()=>AddNewRelationalDimension())">Define Relational Dimension</Button>
+                        </Field>
+
+                        @if(selectedInstance!=null)
+                        {
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHeaderCell>Relation Name</TableHeaderCell>
+                                        <TableHeaderCell>Relation Target</TableHeaderCell>
+                                        <TableHeaderCell></TableHeaderCell>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    @foreach (var relation in selectedInstance.RelationalDimensions)
+                                    {
+                                        <TableRow>
+                                            <TableRowCell>@relation.Name</TableRowCell>
+                                            <TableRowCell>@relation.Target</TableRowCell>
+                                            <TableRowCell>
+                                                <Button Color="Color.Danger" Clicked="@(()=>DeleteRelationalDimension(relation.Name,relation.Target))">Delete</Button>   
+                                            </TableRowCell>
+                                        </TableRow>
+                                    }
+                                </TableBody>
+                            </Table>
+                        }
+                    </TabPanel>
+                </Content>
+            </Tabs>
+        </ModalBody>
+        <ModalFooter>
+            <Button Color="Color.Secondary" Clicked="@CloseUpdateInstanceWindow">Close</Button>
+            <Button Color="Color.Primary" Clicked="@UpdateInstance">Save Changes</Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
+<Modal @bind-Visible="@viewInstanceWindowVisible">
+    <ModalContent Size="ModalSize.ExtraLarge">
+        <ModalHeader>
+            <ModalTitle>                
+                @if(viewInstance!=null)
+                {
+                    @string.Format("View Instance {0} : {1}",@viewInstance.InstanceName,@viewInstance.InstanceType)
+                }                    
+            </ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            <Tabs  SelectedTab="@ViewWindowSelectedTab" SelectedTabChanged="@OnViewWindowTabChanged">
+                <Items>
+                    <Tab Name="properties">Properties</Tab>
+                    <Tab Name="relations">Relations</Tab>
+                    <Tab Name="relationalDimension">Relational Dimensions</Tab> 
+                </Items>
+                <Content>
+                    <TabPanel Name="properties">
+                        @if(viewInstance!=null)
+                        {
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHeaderCell>Property Name</TableHeaderCell>
+                                        <TableHeaderCell>Property Value</TableHeaderCell>
+                                        <TableHeaderCell>Property Type</TableHeaderCell>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    @foreach (var property in viewInstance.Properties)
+                                    {
+                                        <TableRow>
+                                            <TableRowCell>@property.Name</TableRowCell>
+                                            <TableRowCell>
+                                                @if(property.Value!=null)
+                                                {
+                                                    @property.Value
+                                                }                                                
+                                            </TableRowCell>
+                                            <TableRowCell>@property.Type</TableRowCell>
+                                        </TableRow>
+                                    }
+                                </TableBody>
+                            </Table>
+                        }
+                    </TabPanel>
+                    <TabPanel Name="relations">
+                        @if(viewInstance!=null)
+                        {
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHeaderCell>Relation Name</TableHeaderCell>
+                                        <TableHeaderCell>Target Instances</TableHeaderCell>
+                                        <TableHeaderCell>Relation Target</TableHeaderCell>
+                                        <TableHeaderCell>Multiplicity</TableHeaderCell>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    @foreach (var relation in viewInstance.Relations)
+                                    {
+                                        @if(relation.TargetInstances.Count>0)
+                                        {
+                                            <TableRow>
+                                                <TableRowCell>@relation.RelationName</TableRowCell>
+                                                <TableRowCell>@string.Join(",",relation.TargetInstances.Select(t=>ExtractName(t)).ToList())</TableRowCell>
+                                                <TableRowCell>@relation.RelationTarget</TableRowCell>
+                                                <TableRowCell>@relation.Multiplicity</TableRowCell>
+                                            </TableRow>
+                                        }
+                                    }
+                                </TableBody>
+                            </Table>
+                        }
+                    </TabPanel>
+                    <TabPanel Name="relationalDimension">
+                        @if(viewInstance!=null)
+                        {
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHeaderCell>Relation Name</TableHeaderCell>
+                                        <TableHeaderCell>Relation Target</TableHeaderCell>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    @foreach (var relation in viewInstance.RelationalDimensions)
+                                    {
+                                        <TableRow>
+                                            <TableRowCell>@relation.Name</TableRowCell>
+                                            <TableRowCell>@relation.Target</TableRowCell>
+                                        </TableRow>
+                                    }
+                                </TableBody>
+                            </Table>
+                        }
+                    </TabPanel>
+                </Content>
+            </Tabs>
+        </ModalBody>
+        <ModalFooter>
+            <Button Color="Color.Secondary" Clicked="@CloseViewInstanceWindow">Close</Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
+
+@code {
+    [Parameter]
+    public Guid DomainModelId { get; set; }
+    private Guid languageId;
+    private DomainModelDto? model = null;
+    private DomainConceptDto? domainConcept = null;
+    private Dictionary<Guid, bool> collapseSate;
+    private Dictionary<Guid, DomainConceptDto> DomainConcepts;
+    private bool createInstanceWindowVisible = false;
+    private NewDomainObjectDto? instance = null;
+    private bool updateInstanceWindowVisible = false;
+    private DomainObjectDto? selectedInstance = null;
+    private DomainObjectDto? viewInstance = null;
+    private bool viewInstanceWindowVisible = false;
+    @* private Dictionary<string,string> TargetInstances =new(); *@
+    
+    private string RelationalDimensionRelationName;
+    private string RelationalDimensionRelationTarget;
+
+    private string RelationKey;
+    private string RelationTargetInstances;
+
+    string DefaultTab = "properties";
+    string CreateWindowSelectedTab = "properties";
+    string EditWindowSelectedTab = "properties";
+    string ViewWindowSelectedTab = "properties";
+
+    private string text_editor_page_url = "";
+    private string domain_model_scripts = "";
+    private string object_diagram_page_url = "";
+    private string class_diagram_page_url = "";
+    private string reuse_model_page_url = "";
+
+    private string selectedMainTab = "editor";
+    private StringBuilder reportBuilder;
+    private string reports;
+    private HubConnection? hubConnection;
+
+    private void OnMainTabChange(string name){
+        selectedMainTab = name;
+    }
+
+    private async Task RunModelUpdatedListeners()
+    {
+        Console.WriteLine("Start listening ...");
+        // var domainModelHubUrl = "http://localhost:5173/DomainModelHub";
+        var domainModelHubUrl = string.Format("{0}/DomainModelHub",configuration["Services:DomainModelService"]);
+
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(new Uri(domainModelHubUrl))
+            .Build();
+
+        hubConnection.On<Guid, string,string,string>("DomainModelCleared", async (domainModelId, name,type,tag) =>
+        {
+            await HandleModelClearedEvent(domainModelId,name,type,tag);                
+        });
+        hubConnection.On<DomainModelUpdated>("DomainModelUpdated", async (@event) =>
+        {
+            Console.WriteLine("Domain modle updated notification received");
+                await HandleDomainModelUpdatedEvent(@event);
+        });
+        await hubConnection.StartAsync();
+        Console.WriteLine($"{hubConnection?.State}");
+    }
+    public bool IsConnected =>
+        hubConnection?.State == HubConnectionState.Connected;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+
+
+    private Task OnCreateWindowTabChanged( string name )
+    {
+        CreateWindowSelectedTab = name;
+
+        return Task.CompletedTask;
+    }    
+    private Task OnEditWindowTabChanged( string name )
+    {
+        EditWindowSelectedTab = name;
+
+        return Task.CompletedTask;
+    }    
+    private Task OnViewWindowTabChanged( string name )
+    {
+        ViewWindowSelectedTab = name;
+
+        return Task.CompletedTask;
+    }    
+
+    protected override async Task OnInitializedAsync()
+    {
+        languageId = Guid.Empty;
+        DomainConcepts = new Dictionary<Guid, DomainConceptDto>();
+        text_editor_page_url = string.Format("/TextEditor/{0}",DomainModelId);
+        domain_model_scripts = string.Format("/ListScripts/{0}",DomainModelId);
+        object_diagram_page_url = string.Format("/ObjectDiagram/{0}",DomainModelId);
+        class_diagram_page_url = string.Format("/ClassDiagram/{0}",DomainModelId);
+        reuse_model_page_url = string.Format("/ReuseModel/{0}",DomainModelId);
+        reportBuilder = new StringBuilder();
+        reports = "";
+        await RunModelUpdatedListeners();
+        await GetModel();
+    }
+    private async Task GetModel()
+    {
+        model = await domainModelService.GetDomainModelById(DomainModelId);
+
+        if (model != null)
+        {
+            model.Concepts.Sort();
+            collapseSate = new Dictionary<Guid, bool>();
+            foreach (var concept in model.Concepts)
+            {
+                collapseSate.Add(concept.Id, false);
+            }
+        }
+    }
+    private async Task ColapseConcept(Guid conceptId)
+    {
+        collapseSate[conceptId] = !collapseSate[conceptId];
+        if (!DomainConcepts.ContainsKey(conceptId))
+        {
+            var item = await domainConceptService.GetDomainConceptByIdAsync(DomainModelId,conceptId);
+            if (item != null)
+                DomainConcepts.Add(conceptId, item);
+        }
+        StateHasChanged();
+    }
+    private void ShowCreateInstanceWindow(Guid domainConceptId)
+    {
+        if (DomainConcepts.ContainsKey(domainConceptId))
+        {
+            domainConcept = DomainConcepts[domainConceptId];
+            var instanceProperties = domainConcept.Properties
+                                                    .Select(prop => new PropertyValueDto(prop.Name, ""))
+                                                    .ToList();
+            var instanceRelations = domainConcept.Relations
+                                                    .Select(relation => new RelationTargetInstanceDto(relation.Name, relation.Target, ""))
+                                                    .ToList();
+
+            instance = new NewDomainObjectDto(DomainModelId,domainConceptId, "", instanceProperties, instanceRelations,new List<RelationalDimensionDto>());            
+            createInstanceWindowVisible = true;
+        }
+    }
+    private void CloseInstanceWindow()
+    {
+        createInstanceWindowVisible = false;
+        instance = null;
+        domainConcept = null;
+
+        RelationalDimensionRelationName ="";
+        RelationalDimensionRelationTarget = "";
+        CreateWindowSelectedTab = DefaultTab;        
+    }
+    private async Task CreateInstance()
+    {
+        if (instance != null)
+        {
+            instance.DomainObjectRelations.RemoveAll(rel=> string.IsNullOrEmpty(rel.TargetInstance));
+            await domainConceptService.CreateDomainObjectAsync(instance);
+            var domainConcept =  await domainConceptService.GetDomainConceptByIdAsync(DomainModelId,instance.DomainConceptId);
+            if(domainConcept!=null)
+                DomainConcepts[instance.DomainConceptId] = domainConcept;
+            
+            StateHasChanged();
+        }
+        createInstanceWindowVisible = false;
+        CreateWindowSelectedTab = DefaultTab;
+    }
+    private async Task ClearModel()
+    {
+        await domainModelService.ClearDomainModelAsycn(DomainModelId);
+        DomainConcepts = new Dictionary<Guid, DomainConceptDto>();
+        await GetModel();
+        StateHasChanged();
+    }
+    private async Task HandleModelClearedEvent(Guid domainModelId, string name, string type,string tag)
+    {
+        if(domainModelId!= DomainModelId)
+            return;
+
+        var report = $"Domain Model Cleared. Name = {name}, Type = {type}, Tag = tag";
+        Console.WriteLine(report);
+        reportBuilder.AppendLine(report);
+        reports= reportBuilder.ToString();
+
+        DomainConcepts = new Dictionary<Guid, DomainConceptDto>();
+        await GetModel();
+        
+        StateHasChanged();        
+    }
+    private async Task HandleDomainModelUpdatedEvent(DomainModelUpdated @event)
+    {
+        Console.WriteLine("Handle Domain Update Event ...");
+        if(@event.DomainModelId!=DomainModelId)
+            return;
+
+        var report = $"Domain Model Updated = {@event.Name}, Action = {@event.Payload.Action.ToString()}";
+        if(@event.Payload.Result.Count>0)
+            Console.WriteLine("It has payload");
+        else
+            Console.WriteLine("It has not payload");
+            
+        foreach(var item in @event.Payload.Result)
+        {
+            report = report + $", {item.Key} = {item.Value}";
+        }
+        Console.WriteLine(report);
+        reportBuilder.AppendLine(report);
+        reports= reportBuilder.ToString();
+        foreach(var item in DomainConcepts)
+        {
+            var domainConcept =  await domainConceptService.GetDomainConceptByIdAsync(DomainModelId,item.Key);
+            if(domainConcept!=null)
+                DomainConcepts[item.Key] = domainConcept;
+        }
+
+
+        StateHasChanged();
+
+    }
+    private async Task DeleteDomainObject(Guid domainObjectId,Guid domainConceptId)
+    {
+        var instance = DomainConcepts[domainConceptId].Instances.Find(instance=>instance.Id == domainObjectId);
+        await domainConceptService.RemoveDomainObjectAsync(DomainModelId,domainObjectId);
+        if(instance!=null)
+            DomainConcepts[domainConceptId].Instances.Remove(instance);
+    }
+    private async Task ShouwUpdateInstanceWindow(Guid domainObjectId)
+    {
+        selectedInstance = await domainModelService.GetDomainObjectByIdAsync(DomainModelId,domainObjectId);
+        updateInstanceWindowVisible = true;
+    }
+    private void CloseUpdateInstanceWindow()
+    {
+        updateInstanceWindowVisible = false;
+        selectedInstance = null;
+        RelationTargetInstances = "";
+        RelationalDimensionRelationName ="";
+        RelationalDimensionRelationTarget = "";
+        EditWindowSelectedTab = DefaultTab;        
+    }
+    private async Task ViewInstanceWindow(Guid domainObjectId)
+    {
+        viewInstance = await domainModelService.GetDomainObjectByIdAsync(DomainModelId,domainObjectId);
+        viewInstanceWindowVisible = true;
+    }
+    private void CloseViewInstanceWindow()
+    {
+        viewInstanceWindowVisible = false;
+        viewInstance = null;
+        ViewWindowSelectedTab = DefaultTab;
+    }
+    private async Task UpdateInstance()
+    {
+        if(selectedInstance!=null)
+        {
+            var dto = UpdateDomainObjectDto.Create(DomainModelId,selectedInstance);
+            await domainModelService.UpdateDomainObjectAsync(dto);
+            updateInstanceWindowVisible = false;
+            selectedInstance = null;
+        }
+    }
+    private void AddTargetInstance(string relationKey,string targetInstances)
+    {
+        Console.WriteLine($"Add target instance {relationKey} -> {targetInstances}");
+        if(selectedInstance!=null)
+        {
+            Console.WriteLine("Selected instance is not null");
+            var rel = selectedInstance.Relations.Where(rel=>RelationKeyGenerator(rel) == relationKey).FirstOrDefault();
+            if(rel!=null && !string.IsNullOrEmpty(targetInstances))
+            {
+                Console.WriteLine("relation is not null");
+                var instances = targetInstances.Split(",");
+                foreach(var targetInstance in instances)
+                {
+                    Console.WriteLine(targetInstance);
+                    rel.TargetInstances.Add(targetInstance.Trim());
+                }
+                RelationTargetInstances = "";
+            }
+            else{
+                Console.WriteLine("Relation is null");
+            }
+        }else{
+            Console.WriteLine("Selected Instance is null");
+        }
+    }
+    private void DeleteTargetInstance(string relationName,string relationTarget,string targetInstance){
+        if(selectedInstance!=null)
+        {
+            var relation = selectedInstance.Relations.Where(rel=>rel.RelationName == relationName && rel.RelationTarget == relationTarget).FirstOrDefault();
+            if(relation!=null)
+            {
+                relation.TargetInstances.Remove(targetInstance);
+            }
+        }
+
+    }
+
+    private void AddRelationalDimension()
+    {
+        if(!string.IsNullOrEmpty(RelationalDimensionRelationName) && !string.IsNullOrEmpty(RelationalDimensionRelationTarget)){
+            if(instance!=null)
+            {
+                if(instance.RelationalDimensions == null)
+                    instance.RelationalDimensions = new();
+                
+                instance.RelationalDimensions.Add(new RelationalDimensionDto(RelationalDimensionRelationName,RelationalDimensionRelationTarget));
+                RelationalDimensionRelationName = string.Empty;
+                RelationalDimensionRelationTarget=string.Empty;
+            }
+        }
+    }
+    private void AddNewRelationalDimension()
+    {
+        if(!string.IsNullOrEmpty(RelationalDimensionRelationName) && !string.IsNullOrEmpty(RelationalDimensionRelationTarget)){
+            if(selectedInstance!=null)
+            {
+                if(selectedInstance.RelationalDimensions == null)
+                    selectedInstance.RelationalDimensions = new();
+                
+                selectedInstance.RelationalDimensions.Add(new RelationalDimensionDto(RelationalDimensionRelationName,RelationalDimensionRelationTarget));
+                RelationalDimensionRelationName = string.Empty;
+                RelationalDimensionRelationTarget=string.Empty;
+            }
+        }
+    }
+    private void DeleteRelationalDimension(string relationName,string relationTarget)
+    {
+        if(selectedInstance!=null){
+            var relationDimension = selectedInstance.RelationalDimensions.Where(rel=>rel.Name.ToLower() == relationName.ToLower() && rel.Target.ToLower() == relationTarget.ToLower()).FirstOrDefault();
+            if(relationDimension!=null)
+                selectedInstance.RelationalDimensions.Remove(relationDimension);
+        }
+    }
+
+    private string ExtractName(string fullname){
+        if(fullname.Contains("."))
+            return fullname.Split(".")[0];
+        
+        return fullname;
+    }
+    private string RelationKeyGenerator(DomainObjectRelationDto relation)
+    {
+        var key = string.Format("{0}_{1}",relation.RelationName,relation.RelationTarget);
+        Console.WriteLine($"relation key generator -> {key}");
+        return key;
+    }
+}

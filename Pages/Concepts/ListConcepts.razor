@@ -1,0 +1,60 @@
+@page "/ListConcepts"
+@using ConceptDto = MDDPlatform.APIClient.Dtos.Concepts.ConceptDto;
+@inject IConceptService conceptService
+
+<PageTitle>List of Concepts</PageTitle>
+
+<DSLManagementMenu />
+
+
+@if (concepts == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Concept Id</TableHeaderCell>
+                <TableHeaderCell>Concept Name</TableHeaderCell>
+                <TableHeaderCell>Concept Type</TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var concept in concepts)
+            {
+                <TableRow>
+                    <TableRowCell>@concept.Id</TableRowCell>
+                    <TableRowCell>@concept.Name</TableRowCell>
+                    <TableRowCell>@concept.Type</TableRowCell>
+                    <TableRowCell><Button Color="Color.Danger" Clicked="@(e=> DeleteConcept(concept.Id))">Delete</Button></TableRowCell>
+                </TableRow>
+
+            }
+        </TableBody>
+    </Table>
+}
+
+@code {
+    private List<ConceptDto>? concepts=null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetConcepts();        
+    }
+    private async Task DeleteConcept(Guid conceptId)
+    {
+        await conceptService.DeleteConceptAsync(conceptId);
+        await GetConcepts();
+        StateHasChanged();        
+    }
+    private async Task  GetConcepts(){
+        var items = await conceptService.GetConceptsAsync();
+        if(items == null)
+            concepts = new List<ConceptDto>();
+        else
+            concepts = items.ToList();
+    }
+}

@@ -1,0 +1,81 @@
+@page "/ViewPatternInstanceTemplate/{TemplateId:guid}"
+@inject IPatternInstanceTemplateService _patternInstanceTemplateService;
+@if(template!=null)
+{
+    <Field Horizontal>
+        <FieldLabel TextColor="TextColor.Info"><b>General Info</b></FieldLabel>
+        <FieldBody>
+            <Table>
+                <TableHeader>
+                    <TableHeaderCell>Item</TableHeaderCell>
+                    <TableHeaderCell>Description</TableHeaderCell>
+                </TableHeader>
+                <TableBody>
+                    <TableRow>
+                        <TableRowCell>Title</TableRowCell>
+                        <TableRowCell>@template.Title</TableRowCell>
+                    </TableRow>
+                    <TableRow>
+                        <TableRowCell>Pattern</TableRowCell>
+                        <TableRowCell>@template.PatternName</TableRowCell>
+                    </TableRow>
+                    <TableRow>
+                        <TableRowCell>Category</TableRowCell>
+                        <TableRowCell>@template.PatternCategory</TableRowCell>
+                    </TableRow>
+                </TableBody>
+            </Table>
+        </FieldBody>
+    </Field>
+    <Field Horizontal>
+        <FieldLabel TextColor="TextColor.Info"><b>Parameter Values</b></FieldLabel>
+        <FieldBody>
+            <Table>
+                <TableHeader>
+                    <TableHeaderCell>Field</TableHeaderCell>
+                    <TableHeaderCell>Value</TableHeaderCell>
+                </TableHeader>
+                <TableBody>
+                    @foreach (var item in template.FieldValues)
+                    {
+                        <TableRow>
+                            <TableRowCell>@item.Name</TableRowCell>
+                            <TableRowCell>@item.Value</TableRowCell>
+                        </TableRow>                        
+                    }
+                </TableBody>
+            </Table>
+        </FieldBody>        
+    </Field>
+    <Field Horizontal>
+        <FieldLabel TextColor="TextColor.Info"><b>Configurable Variables</b></FieldLabel>
+        <FieldBody>
+            <Table>
+                <TableHeader>
+                    <TableHeaderCell>Name</TableHeaderCell>
+                    <TableHeaderCell>Type</TableHeaderCell>
+                </TableHeader>
+                <TableBody>
+                    @foreach (var item in template.Variables)
+                    {
+                        <TableRow>
+                            <TableRowCell>@item.Name</TableRowCell>
+                            <TableRowCell>@item.Type.ToString()</TableRowCell>
+                        </TableRow>                        
+                    }
+                </TableBody>
+            </Table>
+        </FieldBody>        
+    </Field>
+}
+
+@code{
+    [Parameter]
+    public Guid TemplateId {get;set;}
+    private PatternInstanceTemplateDto? template = null;
+    protected override async Task OnInitializedAsync()
+    {
+        template = await _patternInstanceTemplateService.GetPatternInstanceTemplateAsync(TemplateId);
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,183 @@
+@page "/ConfigProcess/{ProcessConfigurationId:guid}"
+@inject IProcessConfigurationService _processConfigurationService;
+@inject IProblemDomainService _problemDomainService;
+@inject IDomainService _domainService;
+@inject IExecutableProcessService _executableService;
+<ProcessManagementMenu></ProcessManagementMenu>
+
+@if(processConfiguration!=null)
+{
+    <Fields>
+        <Field Horizontal>
+            <FieldLabel ColumnSize="ColumnSize.Is4">Problem Domains</FieldLabel>
+            <FieldBody ColumnSize="ColumnSize.Is8">
+                @if (problemDomainOptions != null)
+                {
+                    <Select TValue="Guid" SelectedValueChanged="@((args) => SelectProblemDomain(args))">
+                        <SelectItem Value="@(Guid.Empty)">-- Select Problem Domain --</SelectItem>
+                        @foreach (var item in problemDomainOptions)
+                        {
+                            <SelectItem Value="@item.Id" TValue="Guid">@item.Title</SelectItem>
+                        }
+                    </Select>
+                }
+            </FieldBody>
+        </Field>
+    </Fields>
+    @if(problemDomainModels!=null && problemDomainModels.Count>0)
+    {
+        <Table>
+            <TableHeader>
+                <TableHeaderCell>Task Title</TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+            </TableHeader>
+            <TableBody>
+                @foreach (var taskConfiguration in processConfiguration.TaskConfigurations)
+                {
+                    <TableRow>
+                        <TableRowCell>@taskConfiguration.TaskTitle</TableRowCell>
+                        <TableRowCell>
+                            <Button Color="Color.Primary" Clicked="@(()=>Show_TaskConfiguration_Window(taskConfiguration))">Config</Button>   
+                        </TableRowCell>
+                    </TableRow>                    
+                }
+            </TableBody>
+        </Table>
+        <Field Horizontal>
+            <FieldLabel></FieldLabel>
+            <Button Color="Color.Primary" Clicked="@(()=>CreateExecutableProcess())">Create Executable Process</Button>
+        </Field>
+    <Modal @bind-Visible="@taskConfigurationWindowVisibility">
+        <ModalContent Centered>
+            <ModalHeader>
+                <ModalTitle>Task Configuration</ModalTitle>
+                <CloseButton />
+            </ModalHeader>
+            <ModalBody>
+                @if(selectedTaskConfiguration!=null){
+                    <Field>
+                        <FieldLabel>Task Title</FieldLabel>
+                        <Label>@selectedTaskConfiguration.TaskTitle</Label>
+                    </Field>
+                    @if(selectedTaskConfiguration.ParameterValues !=null && selectedTaskConfiguration.ParameterValues.Count>0)
+                    {
+                        @foreach (var parameter in selectedTaskConfiguration.ParameterValues)
+                        {
+                            <Field>
+                                <FieldLabel>@parameter.Name</FieldLabel>
+                                <Select TValue="Guid" @bind-SelectedValue="@taskParameterValues[ParameterKey(selectedTaskConfiguration.Id,parameter.Name)]">
+                                    <SelectItem Value="@(Guid.Empty)">--- Select Model ---</SelectItem>
+                                    @foreach (var item in problemDomainModels)
+                                    {
+                                        <SelectItem Value="@item.Id">@string.Format("{0} #{1} - [{2}]",item.Name,item.Tag,item.Type)</SelectItem>
+                                    }
+                                </Select>
+                            </Field>
+                        }
+                    }
+                }
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="@CloseConfigWindow">Close</Button>
+                <Button Color="Color.Primary" Clicked="@(()=>ConfigTask(selectedTaskConfiguration))">Save Changes</Button>
+            </ModalFooter>
+    </ModalContent>
+    </Modal>
+
+    }
+}
+
+@code{
+    [Parameter]
+    public Guid ProcessConfigurationId {get;set;}
+    private ProcessConfigurationDto? processConfiguration = null;
+    private TaskConfigurationDto? selectedTaskConfiguration = null;
+    private List<ProblemDomainDto>? problemDomainOptions = null;
+    private List<ModelDto>? problemDomainModels = null;
+    private bool taskConfigurationWindowVisibility = false;
+
+    private Dictionary<string,Guid> taskParameterValues = new();
+    protected override async Task OnInitializedAsync()
+    {
+        await GetProcessConfiguration();
+        await GetProblemDomainModels();
+        StateHasChanged();
+    }
+    private async Task GetProcessConfiguration(){
+        processConfiguration = await _processConfigurationService.GetProcessConfigurationAsync(ProcessConfigurationId);
+        if(processConfiguration!=null)
+        {
+            foreach(var taskConfiguration in processConfiguration.TaskConfigurations)
+            {
+                if(taskConfiguration.ParameterValues != null && taskConfiguration.ParameterValues.Count>0){
+                    foreach(var parameter in taskConfiguration.ParameterValues)
+                    {
+                        Guid paramValue = Guid.Empty;
+                        if(!string.IsNullOrEmpty(parameter.Value))
+                            Guid.TryParse(parameter.Value,out paramValue);
+                    
+                        taskParameterValues.Add(ParameterKey(taskConfiguration.Id,parameter.Name),paramValue);
+                    }
+                }
+            }
+        }
+    }
+    private async Task GetProblemDomainModels()
+    {
+        var items = await _problemDomainService.GetProblemDomainsAsync();
+        problemDomainOptions = items == null? new List<ProblemDomainDto>() : items.ToList();
+    }
+    private async Task SelectProblemDomain(Guid problemDomainId)
+    {
+       problemDomainModels = await _domainService.GetProblemDomainModelsAsync(problemDomainId);
+       StateHasChanged();
+    }
+    private void Show_TaskConfiguration_Window(TaskConfigurationDto taskConfiguration)
+    {
+        selectedTaskConfiguration = taskConfiguration;
+        taskConfigurationWindowVisibility = true;
+    }
+    private void CloseConfigWindow()
+    {
+        selectedTaskConfiguration = null;
+        taskConfigurationWindowVisibility = false;
+    }
+    private string ParameterKey(Guid taskId , string parameterName){
+        return string.Format("{0}_{1}",taskId,parameterName);
+    }
+    private async Task ConfigTask(TaskConfigurationDto? taskConfiguration)
+    {
+        if(processConfiguration !=null  && taskConfiguration!=null)
+        {
+            List<FieldValueDto> fieldValues = new();
+            bool IsConfiguredCompletely = true;
+            foreach(var parm in taskConfiguration.ParameterValues)
+            {
+                string paramKey = ParameterKey(taskConfiguration.Id,parm.Name);
+                if(taskParameterValues.ContainsKey(paramKey))
+                {
+                    var paramValue = taskParameterValues[paramKey];
+                    if(paramValue == Guid.Empty)
+                       IsConfiguredCompletely = false;
+                    else
+                        fieldValues.Add(new FieldValueDto(parm.Name,paramValue.ToString()));
+                }
+                else
+                    IsConfiguredCompletely = false;
+            }
+            if(IsConfiguredCompletely)
+            {
+                NewTaskConfigurationDto newTaskConfiguration = new(processConfiguration.Id,taskConfiguration.Id,fieldValues);
+                await _processConfigurationService.ConfigTaskAsync(newTaskConfiguration);
+                selectedTaskConfiguration = null;
+                taskConfigurationWindowVisibility = false;
+            }
+        }
+    }
+    private async Task CreateExecutableProcess()
+    {
+        if(processConfiguration!=null){
+            await _executableService.CreateAsync(processConfiguration.ProcessId,processConfiguration.Id);            
+        }
+    }
+}

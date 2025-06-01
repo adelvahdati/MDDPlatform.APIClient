@@ -1,0 +1,91 @@
+@page "/CreatePackagesFromDomain/{domainId:guid}"
+@inject IDomainService domainService;
+@inject IPackageService packageService;
+@if (models == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <Fields>
+        <Field Horizontal>
+            <FieldLabel ColumnSize="ColumnSize.Is2">Package Title</FieldLabel>
+            <FieldBody ColumnSize="ColumnSize.Is10">
+                <TextEdit Placeholder="Enter the Name of Package" @bind-Text="@title"></TextEdit>
+            </FieldBody>
+        </Field>
+    </Fields>
+
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Name</TableHeaderCell>
+                <TableHeaderCell>Tag</TableHeaderCell>
+                <TableHeaderCell>Type</TableHeaderCell>
+                <TableHeaderCell>Level</TableHeaderCell>
+                <TableHeaderCell>Language</TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var model in models)
+            {
+                <TableRow>
+                    <TableRowCell>
+                        <TextEdit Placeholder="Enter the name of model" @bind-Text="@model.Name"></TextEdit>
+                    </TableRowCell>
+                    <TableRowCell>
+                        <TextEdit Placeholder="Enter the name of model" @bind-Text="@model.Tag"></TextEdit>
+                    </TableRowCell>
+                    <TableRowCell>@model.Type</TableRowCell>
+                    <TableRowCell>@model.Level</TableRowCell>
+                    <TableRowCell>@model.Language.Name</TableRowCell>
+                </TableRow>
+            }
+        </TableBody>
+    </Table>
+<Fields>
+    <Field Horizontal>
+        <FieldBody>
+            <Button class="btn btn-primary" Color="Color.Primary" @onclick="CreatePackage">Create Package</Button>
+        </FieldBody>
+    </Field>
+</Fields>
+
+}
+
+@code{
+    [Parameter]
+    public Guid domainId { get; set; }
+    private List<ModelDto>? models = null;
+    private string title="";
+    protected override async Task OnInitializedAsync(){
+        var domain = await domainService.GetDomainAsync(domainId);
+        if (domain == null)
+            models = new List<ModelDto>();
+        else if (domain.Models == null)
+            models = new List<ModelDto>();
+        else
+        {
+            models = domain.Models;
+            models.Sort();
+        }
+    }
+
+    private async Task CreatePackage()
+    {
+        if(models!=null){
+            var abstractModels = models.Select(model=> new ModelTemplateDto(
+                                                            model.Name,
+                                                            model.Tag,
+                                                            model.Type,
+                                                            model.Level,
+                                                            model.Language.Id,
+                                                            model.Language.Name))
+                                        .ToList();
+            var package = new NewPackageDto(title,abstractModels);
+            await packageService.CreatePackageAsync(package);
+        }
+    }
+}

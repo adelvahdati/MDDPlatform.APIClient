@@ -1,0 +1,68 @@
+@page "/ListProcess"
+@inject IProcessService _processService;
+@inject IProcessConfigurationService _processConfigurationService;
+<ProcessManagementMenu></ProcessManagementMenu>
+
+@if(processes == null)
+{
+    <p>Loading ...</p>
+}else
+{
+    <Table>
+        <TableHeader>
+            <TableRow>
+                <TableHeaderCell>Title</TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+                <TableHeaderCell></TableHeaderCell>
+            </TableRow>
+        </TableHeader>
+        <TableBody>
+            @foreach (var item in processes)
+            {
+                <TableRow>
+                    <TableRowCell>
+                        @item.Title                        
+                    </TableRowCell>
+                    <TableRowCell>
+                        <Button Color="Color.Info">
+                            <a href="@string.Format(view_process_page_url,item.Id)" style="color: white;">View</a>                        
+                        </Button>
+                    </TableRowCell>
+                    <TableRowCell>
+                        <Button Color="Color.Info">
+                            <a href="@string.Format(list_process_configurations_page_url,item.Id)" style="color: white;">Configurations</a>                        
+                        </Button>
+                    </TableRowCell>
+                    <TableRowCell>
+                        <Button Color="Color.Danger" Clicked="@(()=>Delete(item.Id))">Delete</Button>
+                    </TableRowCell>
+                </TableRow>                
+            }
+        </TableBody>
+    </Table>
+}
+
+
+@code{
+    private List<ProcessDto> processes = null;
+    private string list_process_configurations_page_url = "/ListProcessConfiguration/{0}";
+    private string view_process_page_url = "/ViewProcess/{0}";
+    private Guid Selected_ProcessId = Guid.Empty;
+    private bool CreationWindowVisibility = false;
+    private string title;
+    protected override async Task OnInitializedAsync()
+    {
+        await ListAllProcesses();    
+    }
+    private async Task ListAllProcesses(){
+        processes = await _processService.ListProcessAsync();        
+        StateHasChanged();
+    }
+    private async Task Delete(Guid processId)
+    {
+        await _processService.DeleteProcessAsync(processId);
+        await ListAllProcesses();
+    }
+
+}

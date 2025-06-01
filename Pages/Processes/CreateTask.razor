@@ -1,0 +1,137 @@
+@page "/CreateTask/{ProcessId:guid}/{PhaseId:guid}/{ActivityId:guid}"
+@inject IProcessService _processService;
+@inject IPatternInstanceTemplateService _patternInstanceTemplateService;
+<ProcessManagementMenu></ProcessManagementMenu>
+<Tabs SelectedTab="@selectedTab" SelectedTabChanged="@OnTabChange">
+    <Items>
+        <Tab Name="tasks">Current Tasks</Tab>
+        <Tab Name="patternInstnaceTemplate">Create Task From Pattern Instance Template</Tab>
+        <Tab Name="manual">Create Manual Task</Tab>
+    </Items>
+    <Content>
+        <TabPanel Name="tasks">
+            @if(tasks!=null)
+            {
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHeaderCell>Title</TableHeaderCell>
+                        <TableHeaderCell></TableHeaderCell>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    @foreach (var item in tasks)
+                    {
+                        <TableRow>
+                            <TableRowCell>@item.Title</TableRowCell>
+                            <TableRowCell>
+                                <Button Color="Color.Danger" Clicked="@(()=>Delete(item.Id))">Delete</Button>
+                            </TableRowCell>
+                        </TableRow>
+                    }
+                </TableBody>
+            </Table>
+            }
+        </TabPanel>
+
+        <TabPanel Name="patternInstnaceTemplate">
+            @if(taskTemplates!=null)
+            {
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHeaderCell>Title</TableHeaderCell>
+                            <TableHeaderCell></TableHeaderCell>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        @foreach (var item in taskTemplates)
+                        {
+                            <TableRow>
+                                <TableRowCell>
+                                    <TextEdit @bind-Text="item.Title"/>                                    
+                                </TableRowCell>
+                                <TableRowCell>
+                                    <Button Color="Color.Primary" Clicked="@(()=>CreateTaskFromPatternInstanceTemplate(item.TemplateId,item.Title))">Create Task</Button>
+                                </TableRowCell>
+                            </TableRow>
+                        }
+                    </TableBody>
+                </Table>
+            }
+        </TabPanel>
+
+        <TabPanel Name="manual">
+            <Fields>
+                <Field Horizontal>
+                    <FieldLabel ColumnSize="ColumnSize.Is4">Task Title</FieldLabel>
+                    <FieldBody>
+                        <TextEdit Placeholder="Task Title" @bind-Text="@manualTaskTitle"></TextEdit>
+                    </FieldBody>
+                </Field>
+            </Fields>
+            <Field Horizontal>
+                <FieldLabel></FieldLabel>        
+                <Button class="btn btn-primary" Color="Color.Primary" @onclick="CreateManualTask">Add</Button>
+            </Field>
+        </TabPanel>
+    </Content>
+</Tabs>
+
+@code{
+    [Parameter]
+    public Guid ProcessId {get;set;}
+    [Parameter]
+    public Guid PhaseId {get;set;}
+    [Parameter]
+    public Guid ActivityId {get;set;}
+
+    private List<TaskDto> tasks = null;
+    private List<TaskTemplateDto> taskTemplates = null;
+    private string manualTaskTitle;
+    
+    private string selectedTab = "tasks";
+    private void OnTabChange(string name){
+        selectedTab = name;
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetTasksAsync();
+        var templates = await _patternInstanceTemplateService.ListPatternInstanceTemplatesAsync();
+
+        taskTemplates = templates == null? 
+                                    new List<TaskTemplateDto>() :
+                                    templates.Select(temp=> new TaskTemplateDto(temp.Title,TaskType.PatternInstanceExecution,temp.Id)).ToList();
+
+        StateHasChanged();
+    }
+    private async Task GetTasksAsync()
+    {
+        var result = await _processService.GetTasksAsync(ProcessId,PhaseId,ActivityId);
+        tasks= result ==null? new List<TaskDto>() : result;
+        
+    }
+    private async Task CreateManualTask(){
+        if(!string.IsNullOrEmpty(manualTaskTitle))
+        {
+            await _processService.CreateManualTaskAsync(ProcessId,PhaseId,ActivityId,manualTaskTitle);
+            manualTaskTitle = "";
+            await GetTasksAsync();
+            StateHasChanged();
+        }
+    }
+    private async Task CreateTaskFromPatternInstanceTemplate(Guid templateId,string title)
+    {
+        await _processService.CreateTaskFromPatternInstanceTemplateAsync(ProcessId,PhaseId,ActivityId,templateId,title);
+        await GetTasksAsync();
+        StateHasChanged();
+    }
+    private async Task Delete(Guid taskId)
+    {
+        await _processService.DeleteTaskAsync(ProcessId,PhaseId,ActivityId,taskId);
+        await GetTasksAsync();
+        StateHasChanged();
+    }
+}
